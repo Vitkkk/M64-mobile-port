@@ -163,6 +163,25 @@ void register_sections(const AotProgram& program) {
         {.table = nullptr, .len = 0});
 }
 
+// O librecomp só registra as funções do primeiro 1 MiB copiado no boot,
+// supondo que o código venha contíguo a partir do ponto de entrada. No SM64
+// cada segmento de código (main, engine, goddard) roda no próprio endereço
+// fixo e é carregado depois por DMA, que não registra nada. Como nenhum
+// deles é relocável, todas as funções são registradas nos seus endereços
+// assim que o runtime termina de inicializar.
+const AotProgram* g_program_for_init = nullptr;
+
+void register_fixed_functions(uint8_t*, recomp_context*) {
+    size_t count = 0;
+    for (const AotSection& section : g_program_for_init->sections()) {
+        for (const AotFunction& func : section.functions) {
+            recomp::overlays::add_loaded_function(int32_t(func.vram), func.func);
+            count++;
+        }
+    }
+    std::fprintf(stderr, "[m64] %zu funções registradas nos endereços fixos\n", count);
+}
+
 } // namespace
 
 GameDescription sm64_description(const KnownRom& rom) {
@@ -229,6 +248,7 @@ bool run_game(const GameDescription& game, const LoadedRom& rom, const AotProgra
     g_run_options = options;
     g_vi_count = 0;
     register_sections(program);
+    g_program_for_init = &program;
 
     recomp::register_config_path(options.data_dir);
     const std::u8string game_id(game.game_id.begin(), game.game_id.end());
@@ -242,6 +262,7 @@ bool run_game(const GameDescription& game, const LoadedRom& rom, const AotProgra
         .is_enabled = true,
         .entrypoint_address = gpr(int32_t(game.entrypoint)),
         .entrypoint = entry,
+        .on_init_callback = register_fixed_functions,
     };
     if (!recomp::register_game(entry_desc)) {
         error = "o runtime recusou o registro do jogo";
