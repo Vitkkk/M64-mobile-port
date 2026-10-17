@@ -67,6 +67,7 @@ class GameActivity : Activity() {
     }
 
     private fun startGame(holder: SurfaceHolder) {
+        NativeBridge.startLogCapture(logFile(this).absolutePath)
         val rom = File(intent.getStringExtra(EXTRA_ROM) ?: return finish())
         val syms = intent.getStringExtra(EXTRA_SYMS) ?: return finish()
         thread(name = "m64-game") {
@@ -91,7 +92,7 @@ class GameActivity : Activity() {
         // Uma linha discreta no canto, para não cobrir a imagem do jogo.
         info.textSize = 11f
         info.alpha = 0.6f
-        info.text = "quadros: ${NativeBridge.frameCount()}  $inputText"
+        info.text = "quadros: ${NativeBridge.frameCount()}  $inputText\n" + NativeBridge.recentLog(6)
         ui.postDelayed(::refresh, 500)
     }
 
@@ -126,5 +127,13 @@ class GameActivity : Activity() {
     companion object {
         const val EXTRA_ROM = "rom"
         const val EXTRA_SYMS = "syms"
+
+        fun logFile(context: android.content.Context) = File(context.filesDir, "ultimo_log.txt")
+
+        fun copyLog(context: android.content.Context, text: String) {
+            val clipboard = context.getSystemService(android.content.ClipboardManager::class.java)
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("log do M64 Mobile Port", text))
+            android.widget.Toast.makeText(context, "Log copiado", android.widget.Toast.LENGTH_SHORT).show()
+        }
     }
 }

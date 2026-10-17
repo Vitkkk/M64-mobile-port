@@ -5,6 +5,7 @@
     <string name="import_rom">Importar minha ROM</string>
     <string name="import_syms">Importar tabela de símbolos</string>
     <string name="recompile">Recompilar e jogar</string>
+    <string name="copy_log">Copiar log da última partida</string>
     <string name="remove_rom">Apagar ROM importada</string>
     <string name="no_rom">Nenhuma ROM importada.</string>
     <string name="no_syms">Tabela de símbolos não encontrada para esta versão. Gere-a no PC com tools/gen_syms.py e importe aqui.</string>

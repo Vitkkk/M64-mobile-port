@@ -15,6 +15,7 @@
 #include "m64/input.hpp"
 #include "m64/rom.hpp"
 #include "m64/rt64_renderer.hpp"
+#include "log_capture.hpp"
 
 #define LOG_TAG "m64port"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -43,6 +44,14 @@ jobject make_result(JNIEnv* env, bool ok, const std::string& message, const std:
 } // namespace
 
 extern "C" {
+
+JNIEXPORT void JNICALL Java_io_github_m64port_NativeBridge_startLogCapture(JNIEnv* env, jclass, jstring path) {
+    m64::start_log_capture(to_string(env, path));
+}
+
+JNIEXPORT jstring JNICALL Java_io_github_m64port_NativeBridge_recentLog(JNIEnv* env, jclass, jint max_lines) {
+    return env->NewStringUTF(m64::recent_log(size_t(max_lines)).c_str());
+}
 
 // Valida a ROM importada e, se for suportada, sobrescreve `rom_bytes` com a
 // versão normalizada (.z64) para o app guardar no armazenamento privado.
@@ -96,7 +105,7 @@ JNIEXPORT jobject JNICALL Java_io_github_m64port_NativeBridge_prepareGame(JNIEnv
     auto program = std::make_unique<m64::AotProgram>();
     std::string error;
     if (!m64::recompile_program(rom->data, syms_file, m64::runtime_hooks(), *program, error)) {
-        LOGE("AOT falhou: %s", error.c_str());
+        std::fprintf(stderr, "[m64] AOT falhou: %s\n", error.c_str());
         return make_result(env, false, error, std::string(rom->info.known->id));
     }
 
@@ -105,7 +114,7 @@ JNIEXPORT jobject JNICALL Java_io_github_m64port_NativeBridge_prepareGame(JNIEnv
     std::snprintf(summary, sizeof(summary),
                   "%zu funções recompiladas (%zu nativas do runtime, %zu KiB de código) em %" PRIu64 " ms",
                   s.num_functions, s.num_native, s.code_size / 1024, s.codegen_microseconds / 1000);
-    LOGI("%s", summary);
+    std::fprintf(stderr, "[m64] %s\n", summary);
     const std::string id{rom->info.known->id};
     g_rom = std::move(rom);
     g_program = std::move(program);
@@ -131,7 +140,7 @@ JNIEXPORT jstring JNICALL Java_io_github_m64port_NativeBridge_runGame(JNIEnv* en
         .create_renderer = m64::create_rt64_renderer,
     };
     std::string error;
-    LOGI("iniciando %s", game.display_name.c_str());
+    std::fprintf(stderr, "[m64] iniciando %s\n", game.display_name.c_str());
     if (!m64::run_game(game, *g_rom, *g_program, options, error)) {
         LOGE("run_game falhou: %s", error.c_str());
         return env->NewStringUTF(error.c_str());

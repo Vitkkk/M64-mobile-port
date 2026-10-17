@@ -103,8 +103,10 @@ public:
         setup_result = map_setup_result(app_->setup(0));
         chosen_api = ultramodern::renderer::GraphicsApi::Vulkan;
         if (setup_result != ultramodern::renderer::SetupResult::Success) {
-            std::fprintf(stderr, "[m64] RT64 não inicializou (%d)\n", int(setup_result));
+            std::fprintf(stderr, "[m64] RT64 não inicializou (código %d)\n", int(setup_result));
             app_ = nullptr;
+        } else {
+            std::fprintf(stderr, "[m64] RT64 inicializado (Vulkan)\n");
         }
     }
 
@@ -123,6 +125,9 @@ public:
     }
 
     void send_dl(const OSTask* task) override {
+        if (display_lists_++ == 0) {
+            std::fprintf(stderr, "[m64] primeira display list recebida\n");
+        }
         app_->state->rsp->reset();
         app_->interpreter->loadUCodeGBI(task->t.ucode & 0x3FFFFFF, task->t.ucode_data & 0x3FFFFFF, true);
         app_->processDisplayLists(app_->core.RDRAM, task->t.data_ptr & 0x3FFFFFF, 0, true);
@@ -130,7 +135,12 @@ public:
 
     void send_dummy_workload(uint32_t fb_address) override {}
 
-    void update_screen() override { app_->updateScreen(); }
+    void update_screen() override {
+        if (screen_updates_++ == 0) {
+            std::fprintf(stderr, "[m64] primeira atualização de tela\n");
+        }
+        app_->updateScreen();
+    }
 
     void shutdown() override {
         if (app_ != nullptr) {
@@ -153,6 +163,8 @@ public:
 
 private:
     std::unique_ptr<RT64::Application> app_;
+    uint64_t display_lists_ = 0;
+    uint64_t screen_updates_ = 0;
 };
 
 } // namespace

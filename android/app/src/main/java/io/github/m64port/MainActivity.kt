@@ -43,6 +43,14 @@ class MainActivity : Activity() {
         column.addView(importSyms)
         play = button(R.string.recompile) { recompileAndPlay() }
         column.addView(play)
+        column.addView(button(R.string.copy_log) {
+            val log = GameActivity.logFile(this)
+            if (log.exists()) {
+                GameActivity.copyLog(this, log.readText())
+            } else {
+                status.text = "Nenhum log ainda: rode o jogo uma vez."
+            }
+        })
         remove = button(R.string.remove_rom) {
             store.deleteRom()
             refresh()

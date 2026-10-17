@@ -31,5 +31,11 @@ object NativeBridge {
     /** Quadros (VI) desde o início do jogo. */
     @JvmStatic external fun frameCount(): Long
 
+    /** Passa stdout/stderr do código nativo para o logcat, [path] e um buffer. */
+    @JvmStatic external fun startLogCapture(path: String)
+
+    /** Últimas [maxLines] linhas capturadas. */
+    @JvmStatic external fun recentLog(maxLines: Int): String
+
     @JvmStatic external fun setController(port: Int, buttons: Int, stickX: Int, stickY: Int)
 }
