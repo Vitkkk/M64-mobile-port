@@ -2,6 +2,7 @@
 #include <jni.h>
 
 #include <android/log.h>
+#include <android/native_window_jni.h>
 
 #include <cinttypes>
 #include <cstdio>
@@ -13,6 +14,7 @@
 #include "m64/game.hpp"
 #include "m64/input.hpp"
 #include "m64/rom.hpp"
+#include "m64/rt64_renderer.hpp"
 
 #define LOG_TAG "m64port"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
@@ -110,14 +112,24 @@ JNIEXPORT jobject JNICALL Java_io_github_m64port_NativeBridge_prepareGame(JNIEnv
     return make_result(env, true, summary, id);
 }
 
-// Roda o jogo preparado. Bloqueia até stopGame; chamar numa thread própria.
-// `data_dir` precisa conter a ROM como sm64.<versão>.z64.
-JNIEXPORT jstring JNICALL Java_io_github_m64port_NativeBridge_runGame(JNIEnv* env, jclass, jstring data_dir) {
+// Roda o jogo preparado, desenhando com o RT64 em `surface`. Bloqueia até
+// stopGame; chamar numa thread própria. `data_dir` precisa conter a ROM como
+// sm64.<versão>.z64.
+JNIEXPORT jstring JNICALL Java_io_github_m64port_NativeBridge_runGame(JNIEnv* env, jclass, jstring data_dir,
+                                                                      jobject surface) {
     if (!g_program || !g_rom) {
         return env->NewStringUTF("prepareGame não foi chamado");
     }
+    ANativeWindow* window = ANativeWindow_fromSurface(env, surface);
+    if (window == nullptr) {
+        return env->NewStringUTF("superfície de vídeo inválida");
+    }
     const m64::GameDescription game = m64::sm64_description(*g_rom->info.known);
-    m64::RunOptions options{.data_dir = to_string(env, data_dir)};
+    m64::RunOptions options{
+        .data_dir = to_string(env, data_dir),
+        .window = window,
+        .create_renderer = m64::create_rt64_renderer,
+    };
     std::string error;
     LOGI("iniciando %s", game.display_name.c_str());
     if (!m64::run_game(game, *g_rom, *g_program, options, error)) {

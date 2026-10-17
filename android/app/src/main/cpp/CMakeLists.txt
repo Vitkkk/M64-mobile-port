@@ -7,4 +7,4 @@ set(M64_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 add_subdirectory(${M64_ROOT} m64native)
 
 add_library(m64port SHARED ${M64_ROOT}/android/jni_bridge.cpp)
-target_link_libraries(m64port PRIVATE m64game log android)
+target_link_libraries(m64port PRIVATE m64rt64 log android)

@@ -5,6 +5,7 @@ import android.graphics.Color
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.view.WindowInsets
@@ -23,15 +24,16 @@ import kotlin.system.exitProcess
 class GameActivity : Activity() {
     private lateinit var info: TextView
     private val ui = Handler(Looper.getMainLooper())
-    private var summary = ""
     private var inputText = ""
     private var running = false
+    private var started = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val root = FrameLayout(this)
-        root.addView(SurfaceView(this).apply { setBackgroundColor(Color.BLACK) })
+        val video = SurfaceView(this)
+        root.addView(video)
 
         info = TextView(this).apply {
             setTextColor(Color.WHITE)
@@ -50,10 +52,21 @@ class GameActivity : Activity() {
 
         setContentView(root)
         hideSystemBars()
-        startGame()
+
+        // O RT64 precisa da superfície pronta; o jogo começa quando ela existe.
+        video.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
+                if (!started) {
+                    started = true
+                    startGame(holder)
+                }
+            }
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {}
+            override fun surfaceDestroyed(holder: SurfaceHolder) {}
+        })
     }
 
-    private fun startGame() {
+    private fun startGame(holder: SurfaceHolder) {
         val rom = File(intent.getStringExtra(EXTRA_ROM) ?: return finish())
         val syms = intent.getStringExtra(EXTRA_SYMS) ?: return finish()
         thread(name = "m64-game") {
@@ -62,11 +75,12 @@ class GameActivity : Activity() {
                 ui.post { info.text = "Falha na recompilação:\n${prepared.message}" }
                 return@thread
             }
-            summary = prepared.message
             running = true
-            ui.post(::refresh)
+            // Mostra o resultado da recompilação por alguns segundos e depois só o contador.
+            ui.post { info.text = "${prepared.message}\n${getString(R.string.runtime_running)}" }
+            ui.postDelayed(::refresh, 4000)
             // A pasta da ROM também guarda saves e configuração do runtime.
-            val error = NativeBridge.runGame(rom.parentFile!!.absolutePath)
+            val error = NativeBridge.runGame(rom.parentFile!!.absolutePath, holder.surface)
             running = false
             ui.post { info.text = if (error != null) "Erro no runtime:\n$error" else "Jogo encerrado." }
         }
@@ -74,9 +88,11 @@ class GameActivity : Activity() {
 
     private fun refresh() {
         if (!running) return
-        info.text = "$summary\n\n${getString(R.string.runtime_running)}\n\n" +
-            "quadros: ${NativeBridge.frameCount()}\n$inputText"
-        ui.postDelayed(::refresh, 250)
+        // Uma linha discreta no canto, para não cobrir a imagem do jogo.
+        info.textSize = 11f
+        info.alpha = 0.6f
+        info.text = "quadros: ${NativeBridge.frameCount()}  $inputText"
+        ui.postDelayed(::refresh, 500)
     }
 
     private fun hideSystemBars() {

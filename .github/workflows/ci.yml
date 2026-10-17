@@ -9,8 +9,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      - name: Submódulos
+        run: tools/init_submodules.sh
       - name: Dependências
         run: sudo apt-get update && sudo apt-get install -y ninja-build clang lld llvm
       - name: Compilar núcleo
@@ -28,8 +28,8 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
+      - name: Submódulos
+        run: tools/init_submodules.sh
       - uses: actions/setup-java@v4
         with:
           distribution: temurin

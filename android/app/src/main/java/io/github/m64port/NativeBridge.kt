@@ -20,8 +20,11 @@ object NativeBridge {
      */
     @JvmStatic external fun prepareGame(romPath: String, symsPath: String): NativeResult
 
-    /** Roda o jogo preparado; bloqueia até [stopGame]. Devolve um erro ou null. */
-    @JvmStatic external fun runGame(dataDir: String): String?
+    /**
+     * Roda o jogo preparado, desenhando com o RT64 em [surface]. Bloqueia até
+     * [stopGame]. Devolve um erro ou null.
+     */
+    @JvmStatic external fun runGame(dataDir: String, surface: android.view.Surface): String?
 
     @JvmStatic external fun stopGame()
 

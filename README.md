@@ -87,8 +87,9 @@ ponta a ponta: `clang`, `ld.lld` e `llvm-objcopy`. Para o app: JDK 17 e
 Android SDK com NDK `27.2.12479018`.
 
 ```sh
-git clone --recurse-submodules https://github.com/vitkkk/m64-mobile-port
+git clone https://github.com/vitkkk/m64-mobile-port
 cd m64-mobile-port
+tools/init_submodules.sh   # só os submódulos usados (o RT64 tem vários que não são)
 
 # Núcleo + testes no PC
 cmake -S native -B native/build -G Ninja
