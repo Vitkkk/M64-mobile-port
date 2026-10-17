@@ -132,3 +132,46 @@ TEST(aot_reports_bad_symbol_file) {
     CHECK(!m64::recompile_program(make_rom(), "/nao/existe.toml", program, error));
     CHECK(!error.empty());
 }
+
+namespace {
+void native_add100(uint8_t*, recomp_context* ctx) {
+    ctx->r2 = ctx->r4 + 100;
+}
+} // namespace
+
+TEST(aot_native_functions_replace_translated_ones) {
+    const auto syms = write_syms();
+    m64::AotHooks hooks;
+    hooks.native_functions["add5"] = native_add100;
+
+    m64::AotProgram program;
+    std::string error;
+    const bool ok = m64::recompile_program(make_rom(), syms, hooks, program, error);
+    CHECK(ok);
+    if (!ok) return;
+    CHECK(program.stats().num_native == 1);
+
+    std::vector<uint8_t> rdram(0x200000);
+    recomp_context ctx{};
+    ctx.r29 = 0xFFFFFFFF80000000ull + rdram.size() - 0x10;
+
+    // Chamada direta à função substituída.
+    ctx.r4 = 1;
+    program.find("add5")(rdram.data(), &ctx);
+    CHECK(ctx.r2 == 101);
+
+    // jal de outra função traduzida: add_twice(x) = add5(add5(x + 1)).
+    ctx.r4 = 1;
+    program.find("add_twice")(rdram.data(), &ctx);
+    CHECK(ctx.r2 == 202);
+
+    // jalr (ponteiro de função) também cai na nativa.
+    ctx.r4 = 7;
+    ctx.r5 = 0xFFFFFFFF80100000ull;
+    program.find("store_add5")(rdram.data(), &ctx);
+    uint32_t stored;
+    std::memcpy(&stored, &rdram[0x100000], 4);
+    CHECK(stored == 107);
+
+    std::filesystem::remove(syms);
+}

@@ -7,10 +7,11 @@ O app não traz código, gráficos, sons nem textos do jogo. Você importa um du
 da **sua própria cópia** do cartucho, o app confere o hash e recompila o código
 MIPS do jogo para código nativo ARM64 **dentro do celular**, na hora de abrir.
 
-> ⚠️ Estado atual: base técnica. A importação da ROM, o recompilador AOT no
-> aparelho, a geração da tabela de símbolos e o controle por toque estão
-> funcionando e testados. O jogo **ainda não abre**: falta integrar o runtime
-> (N64ModernRuntime) e o renderizador (RT64). Ver [Roadmap](#roadmap).
+> ⚠️ Estado atual: o recompilador no aparelho e o runtime (N64ModernRuntime)
+> estão integrados e testados com um "jogo" MIPS sintético que usa a API da
+> libultra (threads, filas de mensagens, eventos de VI). Com a ROM de verdade
+> o jogo ainda **não tem imagem nem som**: faltam o renderizador (RT64) e o
+> áudio. Ver [Roadmap](#roadmap).
 
 ## Por que isso é diferente de um emulador
 
@@ -66,15 +67,16 @@ decompilação comunitária. Detalhes em [docs/ARCHITECTURE.md](docs/ARCHITECTUR
 
 ```
 native/                núcleo C++ (o mesmo código roda no PC e no Android)
-  include/m64/         rom.hpp (validação), aot.hpp (recompilador), input.hpp (controle)
+  include/m64/         rom.hpp (validação), aot.hpp (recompilador), game.hpp (runtime), input.hpp (controle)
   src/                 implementação
   android/             ponte JNI
   cli/m64aot.cpp       ferramenta de PC: valida ROM, recompila e executa funções
+  cli/m64run.cpp       ferramenta de PC: roda o jogo sobre o runtime, sem tela
   tests/               testes unitários (inclui um programa MIPS sintético)
-  third_party/N64Recomp  submódulo (MIT)
+  third_party/N64ModernRuntime  submódulo (GPL-3.0), traz o N64Recomp (MIT)
 android/               app Android (Kotlin, sem dependências além do SDK)
 tools/gen_syms.py      gera a tabela de símbolos a partir do ELF da decompilação
-tools/tests/           teste de ponta a ponta com uma "ROM" sintética
+tools/tests/           testes de ponta a ponta com "ROMs" sintéticas (AOT e runtime)
 docs/                  modelo legal e arquitetura
 ```
 
@@ -93,6 +95,7 @@ cmake -S native -B native/build -G Ninja
 cmake --build native/build
 native/build/m64_tests
 tools/tests/e2e_synthetic.sh
+tools/tests/e2e_runtime.sh
 
 # APK (arm64-v8a + x86_64)
 cd android && ./gradlew assembleDebug
@@ -109,14 +112,16 @@ cd android && ./gradlew assembleDebug
    python3 tools/gen_syms.py --elf sm64/build/us/sm64.us.elf --version us
    # -> generated/sm64.us.syms.toml
    ```
-2. **Confira no PC** que a sua ROM recompila inteira:
+2. **Confira no PC** que a sua ROM recompila inteira e roda sobre o runtime
+   (sem tela; mostra quantos quadros passaram):
    ```sh
    native/build/m64aot /caminho/da/sua/rom.z64 generated/sm64.us.syms.toml
+   native/build/m64run --seconds 10 /caminho/da/sua/rom.z64 generated/sm64.us.syms.toml
    ```
 3. **No celular**: instale o APK, toque em *Importar minha ROM*, depois em
    *Importar tabela de símbolos* (o `sm64.us.syms.toml`), e em *Recompilar e
-   jogar*. Por enquanto a tela do jogo mostra o resultado da recompilação e
-   permite testar o controle por toque.
+   jogar*. Por enquanto a tela do jogo mostra a recompilação, o contador de
+   quadros do runtime e o controle por toque, ainda sem imagem.
 
 Versões reconhecidas (SHA-1 da ROM em formato `.z64`; `.v64` e `.n64` são
 convertidos automaticamente):
@@ -136,8 +141,11 @@ convertidos automaticamente):
 - [x] Geração da tabela de símbolos a partir do ELF da decompilação
 - [x] Teste de ponta a ponta com programa MIPS sintético (ELF → símbolos → AOT → execução)
 - [x] App Android: importação via seletor de arquivos, armazenamento privado, controle multitoque
-- [ ] Ligar as funções da libultra do jogo às do **ultramodern/librecomp** (threads, filas de mensagens, timers, PI DMA, VI, controle)
-- [ ] Portar o **N64ModernRuntime** para Android (threads, áudio via AAudio, saves EEPROM)
+- [x] Ligar as funções da libultra do jogo às do **ultramodern/librecomp** (threads, filas de mensagens, timers, PI DMA, VI, controle)
+- [x] Teste de ponta a ponta do runtime com um "jogo" sintético (boot, threads, mensagens, VI)
+- [x] **N64ModernRuntime** compilando no Android, com o jogo num processo próprio
+- [ ] Testar com a ROM real do SM64 (patches que o jogo precisar)
+- [ ] Áudio via AAudio e saves EEPROM verificados no aparelho
 - [ ] **RT64** no Android (Vulkan) desenhando no `SurfaceView`
 - [ ] Microcódigo de áudio do RSP recompilado a partir da ROM do usuário
 - [ ] Suporte a gamepad Bluetooth, layout de toque configurável
@@ -151,6 +159,10 @@ Detalhes de cada etapa em [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#roadmap-t�
   [N64ModernRuntime](https://github.com/N64Recomp/N64ModernRuntime), de Wiseguy e colaboradores
 - [n64decomp/sm64](https://github.com/n64decomp/sm64), a decompilação comunitária usada para gerar a tabela de símbolos
 - [sljit](https://github.com/zherczeg/sljit), o gerador de código nativo usado pelo LiveRecomp
+
+## Licença
+
+GPL-3.0 (ver [LICENSE](LICENSE)), a mesma do N64ModernRuntime.
 
 Super Mario 64 é marca da Nintendo. Este projeto não tem nenhuma afiliação com
 a Nintendo nem é endossado por ela.

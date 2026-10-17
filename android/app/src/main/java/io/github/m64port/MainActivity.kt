@@ -111,18 +111,12 @@ class MainActivity : Activity() {
     private fun recompileAndPlay() {
         val rom = store.romFile() ?: return
         val syms = store.symsFile(store.versionId() ?: return) ?: return
-        play.isEnabled = false
-        status.text = "Recompilando para código nativo…"
-        thread {
-            val result = NativeBridge.recompile(rom.absolutePath, syms.absolutePath)
-            runOnUiThread {
-                play.isEnabled = true
-                status.text = result.message
-                if (result.ok) {
-                    startActivity(Intent(this, GameActivity::class.java).putExtra(GameActivity.EXTRA_SUMMARY, result.message))
-                }
-            }
-        }
+        // A recompilação e o jogo rodam no processo da GameActivity.
+        startActivity(
+            Intent(this, GameActivity::class.java)
+                .putExtra(GameActivity.EXTRA_ROM, rom.absolutePath)
+                .putExtra(GameActivity.EXTRA_SYMS, syms.absolutePath)
+        )
     }
 
     companion object {

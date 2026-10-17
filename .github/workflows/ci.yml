@@ -21,6 +21,8 @@ jobs:
         run: native/build/m64_tests
       - name: Teste de ponta a ponta (programa MIPS sintético)
         run: tools/tests/e2e_synthetic.sh
+      - name: Teste de ponta a ponta do runtime (jogo sintético)
+        run: tools/tests/e2e_runtime.sh
 
   android:
     runs-on: ubuntu-24.04

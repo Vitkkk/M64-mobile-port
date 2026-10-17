@@ -8,5 +8,5 @@
     <string name="remove_rom">Apagar ROM importada</string>
     <string name="no_rom">Nenhuma ROM importada.</string>
     <string name="no_syms">Tabela de símbolos não encontrada para esta versão. Gere-a no PC com tools/gen_syms.py e importe aqui.</string>
-    <string name="runtime_pending">Recompilação concluída. A integração do runtime de vídeo/áudio (N64ModernRuntime + RT64) ainda está em andamento; esta tela já testa o controle por toque.</string>
+    <string name="runtime_running">O jogo está rodando sobre o N64ModernRuntime, mas ainda sem imagem e sem som: o renderizador (RT64) e o áudio são as próximas etapas.</string>
 </resources>

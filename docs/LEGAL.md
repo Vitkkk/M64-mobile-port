@@ -84,10 +84,8 @@ recompilado.
 ## Licenças de terceiros
 
 - N64Recomp: MIT.
-- N64ModernRuntime (a integrar): **GPL-3.0**. Quando ele for incorporado, o
-  app como um todo precisará ser distribuído sob uma licença compatível com a
-  GPLv3, com código-fonte disponível.
+- N64ModernRuntime: **GPL-3.0**.
 - RT64 (a integrar): MIT.
 
-Ainda é preciso escolher a licença deste projeto. Se o plano é usar o
-N64ModernRuntime, GPL-3.0 é a escolha natural.
+Este projeto é distribuído sob a **GPL-3.0**, compatível com todas elas.
+Quem distribuir o APK precisa disponibilizar o código-fonte correspondente.

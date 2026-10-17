@@ -14,8 +14,19 @@ object NativeBridge {
      */
     @JvmStatic external fun validateRom(rom: ByteArray): NativeResult
 
-    /** Recompila todas as funções da ROM para código nativo, na memória. */
-    @JvmStatic external fun recompile(romPath: String, symsPath: String): NativeResult
+    /**
+     * Recompila todas as funções da ROM para código nativo, na memória, com
+     * a libultra ligada ao runtime. Só no processo do jogo.
+     */
+    @JvmStatic external fun prepareGame(romPath: String, symsPath: String): NativeResult
+
+    /** Roda o jogo preparado; bloqueia até [stopGame]. Devolve um erro ou null. */
+    @JvmStatic external fun runGame(dataDir: String): String?
+
+    @JvmStatic external fun stopGame()
+
+    /** Quadros (VI) desde o início do jogo. */
+    @JvmStatic external fun frameCount(): Long
 
     @JvmStatic external fun setController(port: Int, buttons: Int, stickX: Int, stickY: Int)
 }

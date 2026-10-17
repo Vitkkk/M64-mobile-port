@@ -29,7 +29,7 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-N64RECOMP_SRC = ROOT / "native" / "third_party" / "N64Recomp"
+N64RECOMP_SRC = ROOT / "native" / "third_party" / "N64ModernRuntime" / "N64Recomp"
 TOOLS_BUILD = ROOT / "native" / "build-tools"
 VERSIONS = ("us", "jp", "eu", "sh", "cn")
 

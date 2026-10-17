@@ -19,10 +19,13 @@
             </intent-filter>
         </activity>
 
+        <!-- Processo próprio: o runtime só pode ser iniciado uma vez por
+             processo, então sair do jogo encerra o processo. -->
         <activity
             android:name=".GameActivity"
             android:configChanges="orientation|screenSize|screenLayout|keyboardHidden"
             android:exported="false"
+            android:process=":game"
             android:screenOrientation="sensorLandscape"
             android:theme="@android:style/Theme.Material.NoActionBar.Fullscreen" />
     </application>
