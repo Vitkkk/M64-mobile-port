@@ -27,6 +27,7 @@ set(N64RECOMP_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/N64ModernRuntime/N64Re
 add_library(m64core STATIC
     src/rom.cpp
     src/aot.cpp
+    src/syms_locate.cpp
     src/input.cpp
     # Context::from_symbol_file (leitor da tabela de símbolos) mora no
     # config.cpp do executável do N64Recomp, não nas bibliotecas dele.

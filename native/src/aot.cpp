@@ -6,6 +6,7 @@
 
 #include "recompiler/context.h"
 #include "recompiler/live_recompiler.h"
+#include "syms_locate.hpp"
 
 namespace m64 {
 
@@ -121,9 +122,25 @@ bool recompile_program(std::span<const uint8_t> rom_z64, const std::filesystem::
     static const bool initialized = (N64Recomp::live_recompiler_init(), true);
     (void)initialized;
 
+    // Seções cuja posição na ROM depende dos assets são localizadas antes.
+    std::filesystem::path symbols_path = symbols_toml;
+    const std::filesystem::path resolved_path = symbols_toml.string() + ".resolved";
+    bool used_resolved = false;
+    if (!resolve_located_sections(rom_z64, symbols_toml, resolved_path, used_resolved, error)) {
+        return false;
+    }
+    if (used_resolved) {
+        symbols_path = resolved_path;
+    }
+
     N64Recomp::Context context{};
     std::vector<uint8_t> rom_copy(rom_z64.begin(), rom_z64.end());
-    if (!N64Recomp::Context::from_symbol_file(symbols_toml, std::move(rom_copy), context, true)) {
+    const bool loaded = N64Recomp::Context::from_symbol_file(symbols_path, std::move(rom_copy), context, true);
+    if (used_resolved) {
+        std::error_code ignored;
+        std::filesystem::remove(resolved_path, ignored);
+    }
+    if (!loaded) {
         error = "falha ao ler a tabela de símbolos: " + symbols_toml.string();
         return false;
     }

@@ -175,3 +175,52 @@ TEST(aot_native_functions_replace_translated_ones) {
 
     std::filesystem::remove(syms);
 }
+
+#include "m64/rom.hpp"
+
+TEST(aot_locates_sections_by_hash) {
+    const std::vector<uint8_t> rom = make_rom();
+    // A tabela não sabe onde a seção está (rom = 0); só o hash de um trecho dela.
+    const std::string sha1 = m64::sha1_hex(std::span(rom).subspan(kRomCodeOffset + 0x10, 0x20));
+    const auto path = std::filesystem::temp_directory_path() / "m64_test_locate.toml";
+    {
+        std::ofstream out{path};
+        out << "[[section]]\n"
+               "name = \".text\"\n"
+               "rom = 0x0\n"
+               "vram = 0x80000400\n"
+               "size = 0x70\n"
+               "m64_locate = { offset = 0x10, size = 0x20, sha1 = \"" << sha1 << "\" }\n"
+               "functions = [\n"
+               "    { name = \"add5\", vram = 0x80000400, size = 0x10 },\n"
+               "    { name = \"add_twice\", vram = 0x80000410, size = 0x30 },\n"
+               "]\n";
+    }
+
+    m64::AotProgram program;
+    std::string error;
+    const bool ok = m64::recompile_program(rom, path, program, error);
+    if (!ok) std::fprintf(stderr, "  erro: %s\n", error.c_str());
+    CHECK(ok);
+    if (ok) {
+        CHECK(program.sections()[0].rom == kRomCodeOffset);
+        std::vector<uint8_t> rdram(0x200000);
+        recomp_context ctx{};
+        ctx.r29 = 0xFFFFFFFF80000000ull + rdram.size() - 0x10;
+        ctx.r4 = 10;
+        program.find("add_twice")(rdram.data(), &ctx);
+        CHECK(ctx.r2 == 21);
+    }
+
+    // Hash que não existe na ROM: erro claro em vez de código errado.
+    {
+        std::ofstream out{path};
+        out << "[[section]]\nname = \".text\"\nrom = 0x0\nvram = 0x80000400\nsize = 0x70\n"
+               "m64_locate = { offset = 0, size = 0x10, sha1 = \"0000000000000000000000000000000000000000\" }\n"
+               "functions = [ { name = \"add5\", vram = 0x80000400, size = 0x10 } ]\n";
+    }
+    m64::AotProgram missing;
+    CHECK(!m64::recompile_program(rom, path, missing, error));
+    CHECK(error.find("localizar") != std::string::npos);
+    std::filesystem::remove(path);
+}
