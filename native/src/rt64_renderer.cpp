@@ -48,7 +48,7 @@ class Rt64Renderer final : public ultramodern::renderer::RendererContext {
 public:
     Rt64Renderer(uint8_t* rdram, void* window) {
         RT64::Application::Core core{};
-        core.window = static_cast<RT64::RenderWindow>(window);
+        core.window = static_cast<decltype(core.window)>(window);
         core.checkInterrupts = check_interrupts;
         core.HEADER = g_dummy_rom_header;
         core.RDRAM = rdram;
