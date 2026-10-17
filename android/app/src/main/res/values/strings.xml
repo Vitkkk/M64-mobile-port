@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">M64 Mobile Port</string>
+    <string name="legal_notice">Este app não contém nenhum código, gráfico, som ou texto da Nintendo. Para jogar, importe um dump da sua própria cópia original de Super Mario 64. A ROM é validada pelo hash, guardada só no armazenamento privado do app e nunca sai do aparelho.</string>
+    <string name="import_rom">Importar minha ROM</string>
+    <string name="import_syms">Importar tabela de símbolos</string>
+    <string name="recompile">Recompilar e jogar</string>
+    <string name="remove_rom">Apagar ROM importada</string>
+    <string name="no_rom">Nenhuma ROM importada.</string>
+    <string name="no_syms">Tabela de símbolos não encontrada para esta versão. Gere-a no PC com tools/gen_syms.py e importe aqui.</string>
+    <string name="runtime_pending">Recompilação concluída. A integração do runtime de vídeo/áudio (N64ModernRuntime + RT64) ainda está em andamento; esta tela já testa o controle por toque.</string>
+</resources>

@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  native:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: Dependências
+        run: sudo apt-get update && sudo apt-get install -y ninja-build clang lld llvm
+      - name: Compilar núcleo
+        run: |
+          cmake -S native -B native/build -G Ninja -DCMAKE_BUILD_TYPE=RelWithDebInfo
+          cmake --build native/build
+      - name: Testes unitários
+        run: native/build/m64_tests
+      - name: Teste de ponta a ponta (programa MIPS sintético)
+        run: tools/tests/e2e_synthetic.sh
+
+  android:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: NDK e CMake do Android
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" "cmake;3.22.1" > /dev/null
+      - name: Compilar APK
+        working-directory: android
+        run: ./gradlew assembleDebug
+      - name: Conferir que o APK não contém ROMs
+        run: |
+          if unzip -l android/app/build/outputs/apk/debug/app-debug.apk | grep -Ei '\.(z64|n64|v64|rom)$'; then
+            echo "APK contém arquivo de ROM"; exit 1
+          fi
+      # O APK não contém nada da Nintendo, então pode ser publicado como artefato.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: m64-mobile-port-debug-apk
+          path: android/app/build/outputs/apk/debug/app-debug.apk

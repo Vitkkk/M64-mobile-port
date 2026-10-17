@@ -1,0 +1,30 @@
+# NUNCA versionar conteúdo da Nintendo. Este repositório não contém ROMs,
+# assets, código recompilado nem caches gerados a partir de uma ROM.
+*.z64
+*.n64
+*.v64
+*.rom
+baserom*
+*.m64aot
+/generated/
+/rom/
+/native/build*/
+/build*/
+
+# Android / Gradle
+/android/.gradle/
+/android/build/
+/android/app/build/
+/android/app/.cxx/
+/android/local.properties
+*.apk
+*.aab
+*.keystore
+
+# Editores
+.idea/
+.vscode/
+*.iml
+.DS_Store
+/android/.kotlin/
+/android/app/src/main/assets/syms/

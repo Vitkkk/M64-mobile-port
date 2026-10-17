@@ -1,0 +1,3 @@
+[submodule "native/third_party/N64Recomp"]
+	path = native/third_party/N64Recomp
+	url = https://github.com/N64Recomp/N64Recomp
