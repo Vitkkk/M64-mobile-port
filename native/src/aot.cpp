@@ -1,6 +1,7 @@
 #include "m64/aot.hpp"
 
 #include <chrono>
+#include <cstdlib>
 #include <cstdio>
 #include <sstream>
 
@@ -136,7 +137,8 @@ bool recompile_program(std::span<const uint8_t> rom_z64, const std::filesystem::
     N64Recomp::Context context{};
     std::vector<uint8_t> rom_copy(rom_z64.begin(), rom_z64.end());
     const bool loaded = N64Recomp::Context::from_symbol_file(symbols_path, std::move(rom_copy), context, true);
-    if (used_resolved) {
+    // M64_KEEP_RESOLVED mantém a tabela com as posições resolvidas, para depuração.
+    if (used_resolved && std::getenv("M64_KEEP_RESOLVED") == nullptr) {
         std::error_code ignored;
         std::filesystem::remove(resolved_path, ignored);
     }
