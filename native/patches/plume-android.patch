@@ -1,0 +1,84 @@
+diff --git a/plume_vulkan.cpp b/plume_vulkan.cpp
+index f1dd503..49a24db 100644
+--- a/plume_vulkan.cpp
++++ b/plume_vulkan.cpp
+@@ -2887,6 +2887,9 @@ namespace plume {
+ 
+     void VulkanCommandList::dispatch(uint32_t threadGroupCountX, uint32_t threadGroupCountY, uint32_t threadGroupCountZ) {
+         assert(activeComputePipelineLayout != nullptr);
++        if (!activeComputePipelineValid) {
++            return;
++        }
+ 
+         vkCmdDispatch(vk, threadGroupCountX, threadGroupCountY, threadGroupCountZ);
+     }
+@@ -2927,6 +2930,9 @@ namespace plume {
+ 
+     void VulkanCommandList::drawInstanced(uint32_t vertexCountPerInstance, uint32_t instanceCount, uint32_t startVertexLocation, uint32_t startInstanceLocation) {
+         assert(activeGraphicsPipelineLayout != nullptr);
++        if (!activeGraphicsPipelineValid) {
++            return;
++        }
+         checkActiveRenderPass();
+ 
+         vkCmdDraw(vk, vertexCountPerInstance, instanceCount, startVertexLocation, startInstanceLocation);
+@@ -2934,6 +2940,9 @@ namespace plume {
+     
+     void VulkanCommandList::drawIndexedInstanced(uint32_t indexCountPerInstance, uint32_t instanceCount, uint32_t startIndexLocation, int32_t baseVertexLocation, uint32_t startInstanceLocation) {
+         assert(activeGraphicsPipelineLayout != nullptr);
++        if (!activeGraphicsPipelineValid) {
++            return;
++        }
+         checkActiveRenderPass();
+ 
+         vkCmdDrawIndexed(vk, indexCountPerInstance, instanceCount, startIndexLocation, baseVertexLocation, startInstanceLocation);
+@@ -2946,12 +2955,32 @@ namespace plume {
+         switch (interfacePipeline->type) {
+         case VulkanPipeline::Type::Compute: {
+             const VulkanComputePipeline *computePipeline = static_cast<const VulkanComputePipeline *>(interfacePipeline);
+-            vkCmdBindPipeline(vk, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline->vk);
++            activeComputePipelineValid = (computePipeline->vk != VK_NULL_HANDLE);
++            if (activeComputePipelineValid) {
++                vkCmdBindPipeline(vk, VK_PIPELINE_BIND_POINT_COMPUTE, computePipeline->vk);
++            }
++            else {
++                static bool warned = false;
++                if (!warned) {
++                    fprintf(stderr, "Skipping work for a compute pipeline that failed to compile.\n");
++                    warned = true;
++                }
++            }
+             break;
+         }
+         case VulkanPipeline::Type::Graphics: {
+             const VulkanGraphicsPipeline *graphicsPipeline = static_cast<const VulkanGraphicsPipeline *>(interfacePipeline);
+-            vkCmdBindPipeline(vk, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->vk);
++            activeGraphicsPipelineValid = (graphicsPipeline->vk != VK_NULL_HANDLE);
++            if (activeGraphicsPipelineValid) {
++                vkCmdBindPipeline(vk, VK_PIPELINE_BIND_POINT_GRAPHICS, graphicsPipeline->vk);
++            }
++            else {
++                static bool warned = false;
++                if (!warned) {
++                    fprintf(stderr, "Skipping work for a graphics pipeline that failed to compile.\n");
++                    warned = true;
++                }
++            }
+             break;
+         }
+         case VulkanPipeline::Type::Raytracing: {
+diff --git a/plume_vulkan.h b/plume_vulkan.h
+index 0a1edbe..b937ff0 100644
+--- a/plume_vulkan.h
++++ b/plume_vulkan.h
+@@ -300,6 +300,10 @@ namespace plume {
+         const VulkanFramebuffer *targetFramebuffer = nullptr;
+         const VulkanPipelineLayout *activeComputePipelineLayout = nullptr;
+         const VulkanPipelineLayout *activeGraphicsPipelineLayout = nullptr;
++        // False when the bound pipeline failed to compile (some mobile drivers reject
++        // shaders that desktop drivers accept); its dispatches and draws are skipped.
++        bool activeComputePipelineValid = true;
++        bool activeGraphicsPipelineValid = true;
+         const VulkanPipelineLayout *activeRaytracingPipelineLayout = nullptr;
+         VkRenderPass activeRenderPass = VK_NULL_HANDLE;
+ 

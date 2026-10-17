@@ -55,7 +55,17 @@ if (M64_WITH_RT64)
     include(cmake/apply_patch.cmake)
     set(M64_RT64_DIR ${CMAKE_CURRENT_SOURCE_DIR}/third_party/rt64)
     m64_apply_patch(${M64_RT64_DIR} ${CMAKE_CURRENT_SOURCE_DIR}/patches/rt64-android.patch)
+    # plume (camada Vulkan do RT64): pula pipelines que o driver não compilou.
+    m64_apply_patch(${M64_RT64_DIR}/src/contrib/plume ${CMAKE_CURRENT_SOURCE_DIR}/patches/plume-android.patch)
     set(RT64_STATIC ON CACHE BOOL "" FORCE)
+    if (ANDROID)
+        # O compilador de shaders do Adreno recusa escritas de inteiro escalar
+        # em imagens; elas viram vetores de 4 depois do DXC.
+        find_package(Python3 REQUIRED COMPONENTS Interpreter)
+        set(M64_SPIRV_FIXUP ${CMAKE_CURRENT_SOURCE_DIR}/tools/spirv_vectorize_image_writes.py)
+        set(RT64_SPIRV_POSTPROCESS ${Python3_EXECUTABLE} ${M64_SPIRV_FIXUP})
+        set(RT64_SPIRV_POSTPROCESS_DEPENDS ${M64_SPIRV_FIXUP})
+    endif()
     add_subdirectory(third_party/rt64 EXCLUDE_FROM_ALL)
 
     add_library(m64rt64 STATIC src/rt64_renderer.cpp)
