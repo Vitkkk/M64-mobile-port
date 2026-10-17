@@ -110,7 +110,12 @@ public:
             std::fprintf(stderr, "[m64] RT64 não inicializou (código %d)\n", int(setup_result));
             app_ = nullptr;
         } else {
-            std::fprintf(stderr, "[m64] RT64 inicializado (Vulkan)\n");
+            const auto& caps = app_->device->getCapabilities();
+            std::fprintf(stderr,
+                         "[m64] RT64 inicializado (Vulkan): scalarBlockLayout=%d descriptorIndexing=%d "
+                         "sampleLocations=%d presentWait=%d triangleFan=%d uma=%d maxTexture=%llu\n",
+                         caps.scalarBlockLayout, caps.descriptorIndexing, caps.sampleLocations, caps.presentWait,
+                         caps.triangleFan, caps.uma, (unsigned long long)caps.maxTextureSize);
         }
     }
 

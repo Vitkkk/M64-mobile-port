@@ -1,7 +1,9 @@
 #include "log_capture.hpp"
 
 #include <android/log.h>
+#include <dlfcn.h>
 #include <fcntl.h>
+#include <unwind.h>
 #include <signal.h>
 #include <unistd.h>
 
@@ -52,13 +54,54 @@ void reader_thread(int read_fd) {
     }
 }
 
-// Registra o sinal fatal no arquivo antes do tratamento padrão do Android.
+struct BacktraceState {
+    uintptr_t* frames;
+    size_t count;
+    size_t max;
+};
+
+_Unwind_Reason_Code unwind_callback(_Unwind_Context* context, void* arg) {
+    auto* state = static_cast<BacktraceState*>(arg);
+    const uintptr_t pc = _Unwind_GetIP(context);
+    if (pc != 0) {
+        if (state->count == state->max) {
+            return _URC_END_OF_STACK;
+        }
+        state->frames[state->count++] = pc;
+    }
+    return _URC_NO_REASON;
+}
+
+// Grava biblioteca+deslocamento de cada quadro da pilha. Os deslocamentos
+// dentro de libm64port.so são traduzidos para funções com a biblioteca
+// não-stripada do build (llvm-symbolizer / addr2line).
+void write_backtrace() {
+    uintptr_t frames[48];
+    BacktraceState state{frames, 0, 48};
+    _Unwind_Backtrace(unwind_callback, &state);
+    for (size_t i = 0; i < state.count; i++) {
+        Dl_info dl{};
+        char line[512];
+        int len;
+        if (dladdr(reinterpret_cast<void*>(frames[i]), &dl) && dl.dli_fname != nullptr) {
+            const char* lib = strrchr(dl.dli_fname, '/');
+            len = snprintf(line, sizeof(line), "[m64]   #%02zu %s+0x%zx %s\n", i, lib ? lib + 1 : dl.dli_fname,
+                           size_t(frames[i] - uintptr_t(dl.dli_fbase)), dl.dli_sname ? dl.dli_sname : "");
+        } else {
+            len = snprintf(line, sizeof(line), "[m64]   #%02zu 0x%zx\n", i, size_t(frames[i]));
+        }
+        (void)!write(g_file_fd, line, size_t(len));
+    }
+}
+
+// Registra o sinal fatal e a pilha no arquivo antes do tratamento padrão do Android.
 void crash_handler(int sig, siginfo_t* info, void* context) {
     if (g_file_fd >= 0) {
         char message[128];
         const int len = snprintf(message, sizeof(message), "[m64] processo encerrado pelo sinal %d (%s), endereço %p\n",
                                  sig, strsignal(sig), info ? info->si_addr : nullptr);
         (void)!write(g_file_fd, message, size_t(len));
+        write_backtrace();
     }
     sigaction(sig, &g_old_actions[sig], nullptr);
     raise(sig);
