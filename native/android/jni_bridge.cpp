@@ -5,6 +5,7 @@
 #include <android/native_window_jni.h>
 
 #include <cinttypes>
+#include <cstdlib>
 #include <cstdio>
 #include <memory>
 #include <string>
@@ -133,9 +134,14 @@ JNIEXPORT jstring JNICALL Java_io_github_m64port_NativeBridge_runGame(JNIEnv* en
     if (window == nullptr) {
         return env->NewStringUTF("superfície de vídeo inválida");
     }
+    // No Android HOME aponta para /data, onde o app não pode escrever; quem
+    // usar $HOME para guardar arquivos cai na pasta privada do app.
+    const std::string data = to_string(env, data_dir);
+    setenv("HOME", data.c_str(), 1);
+
     const m64::GameDescription game = m64::sm64_description(*g_rom->info.known);
     m64::RunOptions options{
-        .data_dir = to_string(env, data_dir),
+        .data_dir = data,
         .window = window,
         .create_renderer = m64::create_rt64_renderer,
     };

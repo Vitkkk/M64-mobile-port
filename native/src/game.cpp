@@ -67,7 +67,7 @@ std::unique_ptr<ultramodern::renderer::RendererContext> create_render_context(ui
                                                                               ultramodern::renderer::WindowHandle,
                                                                               bool) {
     if (g_run_options.create_renderer != nullptr) {
-        return g_run_options.create_renderer(rdram, g_run_options.window);
+        return g_run_options.create_renderer(rdram, g_run_options.window, g_run_options.data_dir);
     }
     return std::make_unique<NullRenderer>();
 }

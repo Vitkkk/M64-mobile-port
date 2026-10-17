@@ -46,7 +46,7 @@ ultramodern::renderer::SetupResult map_setup_result(RT64::Application::SetupResu
 
 class Rt64Renderer final : public ultramodern::renderer::RendererContext {
 public:
-    Rt64Renderer(uint8_t* rdram, void* window) {
+    Rt64Renderer(uint8_t* rdram, void* window, const std::filesystem::path& data_dir) {
         RT64::Application::Core core{};
         core.window = static_cast<decltype(core.window)>(window);
         core.checkInterrupts = check_interrupts;
@@ -82,6 +82,10 @@ public:
 
         RT64::ApplicationConfiguration app_config;
         app_config.useConfigurationFile = false;
+        // Sem isso o RT64 usa $HOME/.rt64, e no Android HOME é /data, onde o
+        // app não pode escrever.
+        app_config.detectDataPath = false;
+        app_config.dataPath = data_dir / "rt64";
         app_ = std::make_unique<RT64::Application>(core, app_config);
 
         // Padrões pensados para celular: resolução inteira da tela, sem MSAA,
@@ -169,8 +173,9 @@ private:
 
 } // namespace
 
-std::unique_ptr<ultramodern::renderer::RendererContext> create_rt64_renderer(uint8_t* rdram, void* window) {
-    return std::make_unique<Rt64Renderer>(rdram, window);
+std::unique_ptr<ultramodern::renderer::RendererContext> create_rt64_renderer(uint8_t* rdram, void* window,
+                                                                            const std::filesystem::path& data_dir) {
+    return std::make_unique<Rt64Renderer>(rdram, window, data_dir);
 }
 
 } // namespace m64

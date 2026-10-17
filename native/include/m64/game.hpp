@@ -55,10 +55,11 @@ struct RunOptions {
     std::filesystem::path data_dir;
     // Janela/superfície nativa repassada ao renderizador (ANativeWindow* no Android).
     void* window = nullptr;
-    // Cria o renderizador. Nulo = renderizador vazio, que descarta as
-    // display lists (útil para rodar sem tela, em testes).
-    std::unique_ptr<ultramodern::renderer::RendererContext> (*create_renderer)(uint8_t* rdram, void* window) =
-        nullptr;
+    // Cria o renderizador; `data_dir` é a mesma pasta acima. Nulo =
+    // renderizador vazio, que descarta as display lists (útil para rodar sem
+    // tela, em testes).
+    std::unique_ptr<ultramodern::renderer::RendererContext> (*create_renderer)(
+        uint8_t* rdram, void* window, const std::filesystem::path& data_dir) = nullptr;
 };
 
 // Registra o programa (já recompilado com runtime_hooks) e a ROM no

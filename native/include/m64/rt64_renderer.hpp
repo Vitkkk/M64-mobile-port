@@ -2,6 +2,7 @@
 #pragma once
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 
 namespace ultramodern::renderer {
@@ -11,7 +12,9 @@ class RendererContext;
 namespace m64 {
 
 // Cria o renderizador RT64 desenhando em `window` (ANativeWindow* no
-// Android). Compatível com RunOptions::create_renderer.
-std::unique_ptr<ultramodern::renderer::RendererContext> create_rt64_renderer(uint8_t* rdram, void* window);
+// Android). O RT64 guarda cache e configuração em `data_dir`/rt64.
+// Compatível com RunOptions::create_renderer.
+std::unique_ptr<ultramodern::renderer::RendererContext> create_rt64_renderer(uint8_t* rdram, void* window,
+                                                                            const std::filesystem::path& data_dir);
 
 } // namespace m64
