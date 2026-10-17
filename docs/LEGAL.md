@@ -85,7 +85,7 @@ recompilado.
 
 - N64Recomp: MIT.
 - N64ModernRuntime: **GPL-3.0**.
-- RT64 (a integrar): MIT.
+- RT64: MIT (com um patch nosso para Android em `native/patches/`).
 
 Este projeto é distribuído sob a **GPL-3.0**, compatível com todas elas.
 Quem distribuir o APK precisa disponibilizar o código-fonte correspondente.

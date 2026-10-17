@@ -18,7 +18,8 @@
 │ m64::controller(n)   estado do controle (lido pelo runtime)           │
 │                                                                       │
 │ m64::run_game        librecomp + ultramodern (libultra nativa)        │
-│ [a integrar] RT64 (Vulkan), áudio do RSP                              │
+│ m64::create_rt64_renderer   RT64 (Vulkan) no ANativeWindow            │
+│ [a integrar] áudio do RSP                                             │
 └───────────────────────────────────────────────────────────────────────┘
 ```
 
@@ -121,15 +122,42 @@ espera de quadros por `osViSetEvent`) e o roda com `m64run`.
 porque o runtime só pode ser iniciado uma vez por processo. Sair da tela do
 jogo encerra esse processo.
 
+## Renderizador (RT64)
+
+O RT64 interpreta as display lists do jogo (HLE) e desenha com Vulkan.
+`native/src/rt64_renderer.cpp` implementa o `RendererContext` do ultramodern
+com ele (adaptado do Zelda 64: Recompiled), com padrões para celular:
+resolução inteira da tela, sem MSAA, proporção 4:3, triple buffering.
+
+O RT64 não roda no Android sem mudanças. `native/patches/rt64-android.patch`
+é aplicado automaticamente sobre o submódulo no configure
+(`native/cmake/apply_patch.cmake`) e:
+
+- remove o SDL: a janela é o `ANativeWindow` do `SurfaceView`, entregue
+  pelo app; entrada e tela cheia ficam com o Android;
+- desliga os diálogos de arquivo nativos (só usados pelo inspetor de debug);
+- roda as ferramentas de build na máquina de build: o DXC (compilador de
+  shaders) é escolhido pelo processador do host, e o `file_to_c` é compilado
+  com o compilador do host quando há cross-compilação;
+- tira do zstd o construtor de dicionários, que usa `qsort_r` (ausente no
+  Bionic) e não é usado pelo RT64.
+
+Os shaders são compilados para SPIR-V no build e embutidos na biblioteca.
+O Vulkan é carregado em tempo de execução (volk), então o APK não depende de
+`libvulkan.so` na instalação.
+
+O jogo só começa depois que a superfície existe (`SurfaceHolder.Callback`).
+Ainda não há tratamento para a superfície ser destruída (app em segundo
+plano); sair do app hoje encerra o processo do jogo.
+
 ## Roadmap técnico
 
 1. **ROM real do SM64.** Rodar `m64run` com a ROM e a tabela de símbolos
    reais e corrigir o que aparecer: funções que precisem de stub (acesso a
    registradores de hardware), jump tables, o modo de ponto flutuante.
-2. **RT64 no Android.** O RT64 desenha via Vulkan através da camada `plume`.
-   Falta a superfície Android (`VK_KHR_android_surface` a partir do
-   `ANativeWindow` do `SurfaceView`) e ajustes para GPUs móveis (Adreno, Mali).
-   Entra no lugar do renderizador vazio via `RunOptions::create_renderer`.
+2. **RT64 num aparelho real.** Verificar inicialização do Vulkan em GPUs
+   Adreno e Mali, desempenho, e tratar a destruição e recriação da superfície
+   (app em segundo plano, rotação).
 3. **Áudio do RSP.** O microcódigo de áudio (`aspMain`) também está na ROM.
    Opções: recompilá-lo no aparelho como o código principal, ou usar
    processamento de áudio em alto nível. Ele não pode vir pronto no APK, porque

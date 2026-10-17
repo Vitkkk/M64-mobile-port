@@ -9,9 +9,9 @@ MIPS do jogo para código nativo ARM64 **dentro do celular**, na hora de abrir.
 
 > ⚠️ Estado atual: o recompilador no aparelho e o runtime (N64ModernRuntime)
 > estão integrados e testados com um "jogo" MIPS sintético que usa a API da
-> libultra (threads, filas de mensagens, eventos de VI). Com a ROM de verdade
-> o jogo ainda **não tem imagem nem som**: faltam o renderizador (RT64) e o
-> áudio. Ver [Roadmap](#roadmap).
+> libultra (threads, filas de mensagens, eventos de VI). O renderizador RT64
+> (Vulkan) já compila e entra no APK, mas **ainda não foi testado num
+> celular** nem com a ROM real. Ainda não há som. Ver [Roadmap](#roadmap).
 
 ## Por que isso é diferente de um emulador
 
@@ -98,7 +98,7 @@ native/build/m64_tests
 tools/tests/e2e_synthetic.sh
 tools/tests/e2e_runtime.sh
 
-# APK (arm64-v8a + x86_64)
+# APK (arm64-v8a + x86_64; para só uma: -Pm64.abis=arm64-v8a)
 cd android && ./gradlew assembleDebug
 # -> android/app/build/outputs/apk/debug/app-debug.apk
 ```
@@ -147,7 +147,8 @@ convertidos automaticamente):
 - [x] **N64ModernRuntime** compilando no Android, com o jogo num processo próprio
 - [ ] Testar com a ROM real do SM64 (patches que o jogo precisar)
 - [ ] Áudio via AAudio e saves EEPROM verificados no aparelho
-- [ ] **RT64** no Android (Vulkan) desenhando no `SurfaceView`
+- [x] **RT64** compilando para Android (patch sem SDL), ligado ao runtime e ao `SurfaceView`
+- [ ] RT64 testado num aparelho real (GPUs Adreno/Mali), pausa/retorno do app
 - [ ] Microcódigo de áudio do RSP recompilado a partir da ROM do usuário
 - [ ] Suporte a gamepad Bluetooth, layout de toque configurável
 - [ ] Extras: widescreen, 60 FPS, mods
