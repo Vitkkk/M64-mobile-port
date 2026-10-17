@@ -17,7 +17,10 @@ android {
 
         ndk {
             // arm64 para celulares; x86_64 para o emulador do Android Studio.
-            abiFilters += listOf("arm64-v8a", "x86_64")
+            // Para compilar só uma: ./gradlew assembleDebug -Pm64.abis=arm64-v8a
+            val abis = (project.findProperty("m64.abis") as String?)?.split(",")
+                ?: listOf("arm64-v8a", "x86_64")
+            abiFilters += abis
         }
         externalNativeBuild {
             cmake {
