@@ -17,4 +17,12 @@ namespace m64 {
 std::unique_ptr<ultramodern::renderer::RendererContext> create_rt64_renderer(uint8_t* rdram, void* window,
                                                                             const std::filesystem::path& data_dir);
 
+// Contadores para diagnóstico: listas de desenho recebidas e atualizações de
+// tela feitas pelo RT64 desde o início.
+struct RendererStats {
+    uint64_t display_lists;
+    uint64_t screen_updates;
+};
+RendererStats rt64_renderer_stats();
+
 } // namespace m64

@@ -31,6 +31,9 @@ object NativeBridge {
     /** Quadros (VI) desde o início do jogo. */
     @JvmStatic external fun frameCount(): Long
 
+    /** Linha de diagnóstico do vídeo (listas de desenho, telas, registradores de VI). */
+    @JvmStatic external fun videoStatus(): String
+
     /** Passa stdout/stderr do código nativo para o logcat, [path] e um buffer. */
     @JvmStatic external fun startLogCapture(path: String)
 

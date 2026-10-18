@@ -92,7 +92,8 @@ class GameActivity : Activity() {
         // Uma linha discreta no canto, para não cobrir a imagem do jogo.
         info.textSize = 11f
         info.alpha = 0.6f
-        info.text = "quadros: ${NativeBridge.frameCount()}  $inputText\n" + NativeBridge.recentLog(6)
+        info.text = "quadros: ${NativeBridge.frameCount()}  $inputText\n" +
+            NativeBridge.videoStatus() + "\n" + NativeBridge.recentLog(5)
         ui.postDelayed(::refresh, 500)
     }
 

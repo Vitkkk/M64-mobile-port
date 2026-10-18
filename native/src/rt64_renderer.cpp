@@ -3,6 +3,7 @@
 #include "m64/rt64_renderer.hpp"
 
 #include <algorithm>
+#include <atomic>
 #include <cstdio>
 
 #define HLSL_CPU
@@ -31,6 +32,9 @@ uint32_t g_dpc_tmem_reg = 0;
 uint8_t g_dummy_rom_header[0x40];
 
 void check_interrupts() {}
+
+std::atomic<uint64_t> g_display_lists{0};
+std::atomic<uint64_t> g_screen_updates{0};
 
 ultramodern::renderer::SetupResult map_setup_result(RT64::Application::SetupResult result) {
     using R = ultramodern::renderer::SetupResult;
@@ -134,7 +138,7 @@ public:
     }
 
     void send_dl(const OSTask* task) override {
-        if (display_lists_++ == 0) {
+        if (g_display_lists.fetch_add(1) == 0) {
             std::fprintf(stderr, "[m64] primeira display list recebida\n");
         }
         app_->state->rsp->reset();
@@ -145,7 +149,7 @@ public:
     void send_dummy_workload(uint32_t fb_address) override {}
 
     void update_screen() override {
-        if (screen_updates_++ == 0) {
+        if (g_screen_updates.fetch_add(1) == 0) {
             std::fprintf(stderr, "[m64] primeira atualização de tela\n");
         }
         app_->updateScreen();
@@ -172,8 +176,6 @@ public:
 
 private:
     std::unique_ptr<RT64::Application> app_;
-    uint64_t display_lists_ = 0;
-    uint64_t screen_updates_ = 0;
 };
 
 } // namespace
@@ -181,6 +183,10 @@ private:
 std::unique_ptr<ultramodern::renderer::RendererContext> create_rt64_renderer(uint8_t* rdram, void* window,
                                                                             const std::filesystem::path& data_dir) {
     return std::make_unique<Rt64Renderer>(rdram, window, data_dir);
+}
+
+RendererStats rt64_renderer_stats() {
+    return RendererStats{g_display_lists.load(), g_screen_updates.load()};
 }
 
 } // namespace m64

@@ -18,6 +18,8 @@
 #include "m64/rt64_renderer.hpp"
 #include "log_capture.hpp"
 
+#include <ultramodern/renderer_context.hpp>
+
 #define LOG_TAG "m64port"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, LOG_TAG, __VA_ARGS__)
 #define LOGE(...) __android_log_print(ANDROID_LOG_ERROR, LOG_TAG, __VA_ARGS__)
@@ -160,6 +162,18 @@ JNIEXPORT void JNICALL Java_io_github_m64port_NativeBridge_stopGame(JNIEnv*, jcl
 
 JNIEXPORT jlong JNICALL Java_io_github_m64port_NativeBridge_frameCount(JNIEnv*, jclass) {
     return jlong(m64::vi_count());
+}
+
+// Uma linha de diagnóstico do vídeo: listas de desenho, atualizações de tela
+// e os registradores de VI que o RT64 usa para escolher o que apresentar.
+JNIEXPORT jstring JNICALL Java_io_github_m64port_NativeBridge_videoStatus(JNIEnv* env, jclass) {
+    const m64::RendererStats stats = m64::rt64_renderer_stats();
+    const ultramodern::renderer::ViRegs* vi = ultramodern::renderer::get_vi_regs();
+    char line[256];
+    std::snprintf(line, sizeof(line), "listas: %llu  telas: %llu  VI origin=0x%08X status=0x%08X width=%u",
+                  (unsigned long long)stats.display_lists, (unsigned long long)stats.screen_updates,
+                  vi->VI_ORIGIN_REG, vi->VI_STATUS_REG, vi->VI_WIDTH_REG);
+    return env->NewStringUTF(line);
 }
 
 JNIEXPORT void JNICALL Java_io_github_m64port_NativeBridge_setController(JNIEnv*, jclass, jint port, jint buttons,
