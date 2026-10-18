@@ -50,6 +50,15 @@ android {
         }
     }
 
+    // Bibliotecas nativas comprimidas no APK: o arquivo cai de ~44 MB para
+    // bem menos, o que facilita baixar e instalar. O Android as extrai na
+    // instalação.
+    packaging {
+        jniLibs {
+            useLegacyPackaging = true
+        }
+    }
+
     // O APK nunca empacota ROMs, mesmo que alguém as coloque em assets/ por engano.
     androidResources {
         ignoreAssetsPattern = "!*.z64:!*.n64:!*.v64:!*.rom"
