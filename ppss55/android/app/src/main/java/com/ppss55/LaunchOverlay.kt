@@ -20,12 +20,13 @@ import java.io.RandomAccessFile
  * Loading card shown over the game until it presents its first frame. The step text is *real*: it
  * follows markers the core writes to the session log (module relocation and start, Vulkan swapchain)
  * and the card disappears when the core's window title reports frame >= 1 (window.cpp
- * "frame: N, fps: F"). Nothing is simulated; without the detailed log it just shows the first step.
+ * "frame: N, fps: F"). Nothing is simulated; without the detailed log (off by default) only the
+ * generic first step and the elapsed time are shown.
  */
 class LaunchOverlay(private val activity: Activity, private val log: File?, gamePath: String?, title: String) {
 
     private enum class Step(val text: String, val marker: String?) {
-        CORE("Iniciando o núcleo e o tradutor de CPU (FEXCore)…", null),
+        CORE("Carregando o jogo (núcleo, módulos e GPU)…", null),
         MODULES("Carregando e ligando os módulos do jogo…", "--- Relocate program"),
         START("Iniciando as bibliotecas do jogo…", "--- Start module"),
         GPU("Preparando a GPU (Vulkan) e a tela…", "Vulkan presentation:"),

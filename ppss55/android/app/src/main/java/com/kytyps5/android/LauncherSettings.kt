@@ -104,11 +104,36 @@ class LauncherSettings(context: Context) {
             prefs.edit().putBoolean(KEY_TU_SYSMEM, value).apply()
         }
 
+    /** --async-shaders: translate shaders on workers and skip draws whose pipeline is not ready. */
+    var asyncShaders: Boolean
+        get() = prefs.getBoolean(KEY_ASYNC_SHADERS, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_ASYNC_SHADERS, value).apply()
+        }
+
+    /** KYTY_PIPELINE_GRACE_MS (core patch 0005): wait this long for a compiling pipeline before skipping the draw. */
+    var pipelineGraceMs: Int
+        get() = prefs.getInt(KEY_PIPELINE_GRACE, 8).takeIf { it in PIPELINE_GRACE_CHOICES } ?: 8
+        set(value) {
+            prefs.edit().putInt(KEY_PIPELINE_GRACE, value).apply()
+        }
+
+    val hasProfile: Boolean get() = prefs.contains(KEY_PROFILE)
+
+    /** Last applied PPSS55 performance profile (CUSTOM once something is changed by hand). */
+    var profile: com.ppss55.PerformanceProfile
+        get() = com.ppss55.PerformanceProfile.fromStorage(prefs.getString(KEY_PROFILE, null))
+        set(value) {
+            prefs.edit().putString(KEY_PROFILE, value.name).apply()
+        }
+
     /** Detailed core log in the session file (--printf-direction Console). Slower; on while diagnosing. */
     var coreLog: Boolean
-        get() = prefs.getBoolean(KEY_CORE_LOG, true)
+        // Off by default since 0.2.0: ~2000 lines/s cost FPS; crash reports (patch 0004) and fatal
+        // errors still reach the session file without it.
+        get() = prefs.getBoolean(KEY_CORE_LOG_V2, false)
         set(value) {
-            prefs.edit().putBoolean(KEY_CORE_LOG, value).apply()
+            prefs.edit().putBoolean(KEY_CORE_LOG_V2, value).apply()
         }
 
     /** Environment lines from the launcher-wide settings; a game's own lines come after and win. */
@@ -116,6 +141,7 @@ class LauncherSettings(context: Context) {
         add("$ENV_AUDIO_LATENCY=$audioLatencyMs")
         if (rpOpsOff) add("KYTY_RP_OPS=0")
         if (turnipSysmem) add("TU_DEBUG=sysmem")
+        if (asyncShaders && pipelineGraceMs > 0) add("KYTY_PIPELINE_GRACE_MS=$pipelineGraceMs")
     }
 
     /** --shader-disk-cache: keep translated shaders between runs. */
@@ -164,7 +190,11 @@ class LauncherSettings(context: Context) {
         const val DEFAULT_AUDIO_LATENCY_MS = 120
         private const val KEY_AUDIO_LATENCY = "ppss55_audio_latency_ms"
         private const val KEY_RP_OPS_OFF = "ppss55_rp_ops_off"
-        private const val KEY_CORE_LOG = "ppss55_core_log"
+        private const val KEY_CORE_LOG_V2 = "ppss55_core_log_v2"
+        private const val KEY_ASYNC_SHADERS = "ppss55_async_shaders"
+        private const val KEY_PROFILE = "ppss55_profile"
+        private const val KEY_PIPELINE_GRACE = "ppss55_pipeline_grace_ms"
+        val PIPELINE_GRACE_CHOICES = listOf(0, 4, 8, 16)
         private const val KEY_TU_SYSMEM = "ppss55_tu_sysmem"
         private const val KEY_ONBOARDED = "ppss55_onboarded"
         private const val KEY_GAMES_TREE_URI = "ppss55_games_tree_uri"

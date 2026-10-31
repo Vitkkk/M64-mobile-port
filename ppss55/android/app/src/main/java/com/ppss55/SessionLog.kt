@@ -89,13 +89,21 @@ object SessionLog {
             appendLine("=== Erros ===")
             if (errors.isEmpty()) appendLine("(nenhum relatório de erro do núcleo)") else errors.forEach { appendLine(it) }
             appendLine()
+            val perfAt = lines.indexOfLast { it.startsWith("=== Estatísticas de desempenho") }
+            if (perfAt >= 0) {
+                // Every 10th per-second record plus the last few: trend without flooding the chat.
+                val perf = lines.drop(perfAt + 1).takeWhile { !it.startsWith("===") && it.isNotBlank() }
+                appendLine(lines[perfAt])
+                (perf.filterIndexed { i, _ -> i % 10 == 0 } + perf.takeLast(3)).distinct().forEach { appendLine(it.take(600)) }
+                appendLine()
+            }
             val exitAt = lines.indexOfLast { it.startsWith("=== Saída do processo do jogo") }
             if (exitAt >= 0) {
                 lines.subList(exitAt, minOf(lines.size, exitAt + 80)).forEach { appendLine(it.take(300)) }
                 appendLine()
             }
             // The tail must not repeat the exit block shown above.
-            val tailEnd = if (exitAt >= 0) exitAt else lines.size
+            val tailEnd = listOf(exitAt, perfAt).filter { it >= 0 }.minOrNull() ?: lines.size
             appendLine("=== Últimas $tailLines linhas ===")
             lines.subList(maxOf(0, tailEnd - tailLines), tailEnd).forEach { appendLine(it.take(300)) }
         }

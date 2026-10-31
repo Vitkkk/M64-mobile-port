@@ -29,6 +29,17 @@ expostas em *Configurações → Correções de renderização*: `KYTY_RP_OPS=0`
 em `loadOp CLEAR`, ligada por padrão com Turnip) e `TU_DEBUG=sysmem` (Turnip sem GMEM). O jogo também
 abriu o teclado de texto do sistema (o PvZ pede nome de jogador), que funcionou.
 
+## V2 (0.2.0): desempenho e o pisca-pisca
+
+- **Predefinições** em Configurações: Celular fraco, Equilibrado (padrão), Qualidade e
+  Compatibilidade. A Compatibilidade desliga as três suspeitas do pisca: shaders síncronos
+  (`--async-shaders 0`, nenhum desenho pulado), `KYTY_RP_OPS=0` e `TU_DEBUG=sysmem`.
+- O **log detalhado do núcleo** volta a vir desligado: ~2000 linhas/s custavam FPS. Crashes
+  continuam registrados (patch 0004 escreve direto no arquivo).
+- **Estatísticas por segundo** (`--perf-stats`: FPS, frame time p50/p95, `skipped_draws`, compilação
+  de shaders, threads mais ocupadas) entram no log compartilhado.
+- **Espera por shader** (patch 0005), padrão 8 ms no Equilibrado.
+
 ## Patches sobre o núcleo
 
 O submódulo `core/` fica fixado no commit do upstream; as mudanças do PPSS55 no núcleo ficam em
@@ -39,6 +50,7 @@ O submódulo `core/` fica fixado no commit do upstream; as mudanças do PPSS55 n
 | `0001-audio-configurable-latency.patch` | Profundidade da fila de áudio SDL lida de `KYTY_AUDIO_LATENCY_MS` (10–500 ms), limite de 16 → 64 buffers do jogo |
 | `0002-log-flush-per-line.patch` | `KYTY_LOG_FLUSH=1`: o log em arquivo (`--printf-direction File`) grava cada linha na hora |
 | `0004-report-unhandled-host-fault.patch` | Falha nativa não tratada (ARM64): escreve sinal, endereço, thread, PC/LR com biblioteca+offset (`dladdr`) e pilha por frame pointer no log da sessão, e devolve a falha ao tratador anterior (debuggerd) em vez de `SIG_DFL`, para o Android gerar o tombstone. O PvZ morria com SIGSEGV sem nenhum rastro |
+| `0005-pipeline-grace-wait.patch` | `KYTY_PIPELINE_GRACE_MS` (0–50): com shaders assíncronos, espera até N ms pelo pipeline antes de pular o desenho (orçamento de 4×N por 100 ms). Ataca elementos que somem e reaparecem |
 | `0003-stdout-tee-file.patch` | Toda linha que o núcleo manda ao logcat também vai para `KYTY_STDOUT_FILE` (gravada por linha). No 9S Pro o app não recebe nada lendo o logcat, então os logs de sessão usam esse arquivo |
 
 ## Por que este núcleo

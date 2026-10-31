@@ -72,8 +72,18 @@ object LaunchArgs {
     private const val FLAG_SHADER_DISK_CACHE = "--shader-disk-cache"
 
     /** Extra emulator flags from launcher-wide PPSS55 settings, appended after [forGame]'s. */
-    fun extras(presentMode: PresentMode, shaderDiskCache: Boolean, perfStats: Boolean, coreLog: Boolean = true): Array<String> =
-        arrayOf(FLAG_PRESENT_MODE, presentMode.arg, FLAG_SHADER_DISK_CACHE, if (shaderDiskCache) "1" else "0") +
+    fun extras(
+        presentMode: PresentMode,
+        shaderDiskCache: Boolean,
+        perfStats: Boolean,
+        coreLog: Boolean = true,
+        asyncShaders: Boolean = true,
+    ): Array<String> =
+        arrayOf(
+            FLAG_PRESENT_MODE, presentMode.arg,
+            FLAG_SHADER_DISK_CACHE, if (shaderDiskCache) "1" else "0",
+            "--async-shaders", if (asyncShaders) "1" else "0",
+        ) +
             (if (perfStats) arrayOf(FLAG_PERF_STATS) else emptyArray()) +
             (if (coreLog) CONSOLE_LOG else emptyArray())
 

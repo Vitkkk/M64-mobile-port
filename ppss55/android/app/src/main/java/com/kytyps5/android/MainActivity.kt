@@ -70,6 +70,8 @@ class MainActivity : Activity() {
             finish()
             return
         }
+        // 0.2.0: start from the balanced profile once (log off, 75% scale, shader grace).
+        if (!settings.hasProfile) com.ppss55.PerformanceProfile.BALANCED.apply(settings)
         drivers = GpuDriverPanel(
             activity = this,
             settings = settings,
@@ -131,6 +133,13 @@ class MainActivity : Activity() {
             SessionLog.stopOrphans()
             val file = SessionLog.latest(this, since) ?: return@execute
             // What Android recorded about the game process' death (OOM, signal, native crash).
+            // --perf-stats writes one summary per second to files/_perf_log.txt (core perfWaits.cpp).
+            File(filesDir, "_perf_log.txt").takeIf { it.isFile && it.lastModified() >= since }?.let { perf ->
+                runCatching {
+                    val lines = perf.readLines().takeLast(60)
+                    file.appendText("\n=== Estatísticas de desempenho (últimos ${lines.size} registros) ===\n" + lines.joinToString("\n") + "\n")
+                }
+            }
             val exit = com.ppss55.ExitReasons.lastGameExit(this, since)
             exit?.let { com.ppss55.ExitReasons.appendTo(file, it) }
             val excerpt = SessionLog.crashExcerpt(file).ifEmpty {
@@ -259,35 +268,66 @@ class MainActivity : Activity() {
 
     private fun showSettings() {
         val c = this
+        var shown: AlertDialog? = null
+        // A hand-made change turns the active profile into "Personalizado".
+        fun custom(change: () -> Unit) {
+            change()
+            settings.profile = com.ppss55.PerformanceProfile.CUSTOM
+        }
         val body = LinearLayout(c).apply {
             orientation = LinearLayout.VERTICAL
+            addView(Ui.text(c, "Predefinição de desempenho", 15f, bold = true))
+            addView(Ui.text(c, "Ajusta várias opções de uma vez; dá para mudar qualquer uma depois.", 12f, Ui.DIM))
+            com.ppss55.PerformanceProfile.entries.filter { it != com.ppss55.PerformanceProfile.CUSTOM || settings.profile == it }.forEach { p ->
+                val active = settings.profile == p
+                addView(Ui.card(c).apply {
+                    addView(Ui.text(c, (if (active) "● " else "○ ") + p.label, 14f, if (active) Ui.ACCENT else Ui.TEXT, bold = true))
+                    addView(Ui.text(c, p.description, 12f, Ui.DIM))
+                    isClickable = true
+                    setOnClickListener {
+                        p.apply(settings)
+                        shown?.dismiss()
+                        showSettings()
+                    }
+                }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { bottomMargin = Ui.dp(c, 6) })
+            }
+            addView(Ui.spacer(c, 8))
             addView(Ui.text(c, "Resolução de saída", 14f, bold = true))
-            addView(radio(Resolution.entries, settings.resolution, { it.label }) { settings.resolution = it })
+            addView(radio(Resolution.entries, settings.resolution, { it.label }) { custom { settings.resolution = it } })
             addView(Ui.text(c, "Resolução interna (escala de renderização)", 14f, bold = true))
-            addView(radio(RenderScale.entries, settings.renderScale, { if (it == RenderScale.NATIVE) "100%" else it.label }) { settings.renderScale = it })
+            addView(Ui.text(c, "Menor = mais FPS em jogos limitados pela GPU, imagem mais suave/borrada.", 12f, Ui.DIM))
+            addView(radio(RenderScale.entries, settings.renderScale, { if (it == RenderScale.NATIVE) "100%" else it.label }) { custom { settings.renderScale = it } })
             addView(Ui.text(c, "Apresentação / limite de quadros", 14f, bold = true))
             addView(Ui.text(c, "O núcleo não tem limitador de FPS próprio; VSync limita à taxa de atualização da tela.", 12f, Ui.DIM))
-            addView(radio(PresentMode.entries, settings.presentMode, { it.label }, vertical = true) { settings.presentMode = it })
-            addView(toggle("Cache de shaders em disco", settings.shaderDiskCache) { settings.shaderDiskCache = it })
+            addView(radio(PresentMode.entries, settings.presentMode, { it.label }, vertical = true) { custom { settings.presentMode = it } })
+            addView(Ui.text(c, "Shaders", 14f, bold = true))
+            addView(toggle("Compilar shaders em segundo plano (assíncrono)", settings.asyncShaders) { custom { settings.asyncShaders = it } })
+            addView(Ui.text(c, "Ligado: o jogo não trava ao compilar, mas desenhos com shader ainda não pronto são pulados naquele quadro (pode piscar). Desligado: nada é pulado, mas engasga enquanto compila.", 12f, Ui.DIM))
+            addView(Ui.text(c, "Espera por shader antes de pular o desenho (com o modo assíncrono)", 13f))
+            addView(radio(LauncherSettings.PIPELINE_GRACE_CHOICES, settings.pipelineGraceMs, { if (it == 0) "não esperar" else "$it ms" }) { custom { settings.pipelineGraceMs = it } })
+            addView(Ui.text(c, "Pipelines costumam ficar prontos em poucos ms: esperar um pouco evita que elementos sumam e reapareçam. 0 = comportamento original do núcleo.", 12f, Ui.DIM))
+            addView(toggle("Cache de shaders em disco", settings.shaderDiskCache) { custom { settings.shaderDiskCache = it } })
             addView(Ui.text(c, "Buffer de áudio", 14f, bold = true))
             addView(Ui.text(c, "Maior = menos picotes quando o jogo engasga, porém som mais atrasado. 40 ms é o valor original do núcleo.", 12f, Ui.DIM))
-            addView(radio(LauncherSettings.AUDIO_LATENCY_CHOICES, settings.audioLatencyMs, { "$it ms" }) { settings.audioLatencyMs = it })
+            addView(radio(LauncherSettings.AUDIO_LATENCY_CHOICES, settings.audioLatencyMs, { "$it ms" }) { custom { settings.audioLatencyMs = it } })
             addView(Ui.text(c, "Correções de renderização (teste)", 14f, bold = true))
             addView(Ui.text(c, "Para imagem piscando ou elementos sumindo entre quadros. Teste uma de cada vez e veja se melhora.", 12f, Ui.DIM))
-            addView(toggle("Não fundir limpezas de tela nos passes (KYTY_RP_OPS=0)", settings.rpOpsOff) { settings.rpOpsOff = it })
-            addView(toggle("Turnip sem renderização em blocos (TU_DEBUG=sysmem, mais lento)", settings.turnipSysmem) { settings.turnipSysmem = it })
+            addView(toggle("Não fundir limpezas de tela nos passes (KYTY_RP_OPS=0)", settings.rpOpsOff) { custom { settings.rpOpsOff = it } })
+            addView(toggle("Turnip sem renderização em blocos (TU_DEBUG=sysmem, mais lento)", settings.turnipSysmem) { custom { settings.turnipSysmem = it } })
+            addView(toggle(GameSettingsDialog.GPU_TURBO_LABEL, settings.gpuTurbo) { custom { settings.gpuTurbo = it } })
+            addView(Ui.spacer(c, 8))
+            addView(Ui.text(c, "Diagnóstico e interface", 14f, bold = true))
             addView(toggle("Mostrar FPS / frame time (HUD)", settings.hudEnabled) { settings.hudEnabled = it })
-            addView(toggle("Log detalhado do núcleo (Download/PPSS55/logs; um pouco mais lento)", settings.coreLog) { settings.coreLog = it })
-            addView(toggle("Registrar estatísticas por segundo (--perf-stats)", diag.getBoolean(KEY_PERF_STATS, false)) { diag.edit().putBoolean(KEY_PERF_STATS, it).apply() })
+            addView(toggle("Log detalhado do núcleo (milhares de linhas/s: deixa o jogo mais lento; crashes são registrados mesmo desligado)", settings.coreLog) { settings.coreLog = it })
+            addView(toggle("Estatísticas de desempenho por segundo (vão para o log compartilhado)", diag.getBoolean(KEY_PERF_STATS, false)) { diag.edit().putBoolean(KEY_PERF_STATS, it).apply() })
             addView(toggle("Controles virtuais na tela", settings.touchControlsEnabled) { settings.touchControlsEnabled = it })
-            addView(toggle(GameSettingsDialog.GPU_TURBO_LABEL, settings.gpuTurbo) { settings.gpuTurbo = it })
             addView(Ui.spacer(c, 8))
             addView(Ui.text(c, "Driver Vulkan", 14f, bold = true))
             addView(drivers.build(onChanged = {}))
             addView(Ui.spacer(c, 8))
             addView(Ui.text(c, "Ajustes por jogo (controles, resolução, driver, presets, variáveis): toque em ⚙ ou segure o jogo.", 12f, Ui.DIM))
         }
-        dialog("Configurações", body)
+        shown = dialog("Configurações", body)
     }
 
     private fun <T> radio(values: List<T>, current: T, label: (T) -> String, vertical: Boolean = false, onPick: (T) -> Unit): RadioGroup {
@@ -528,7 +568,7 @@ class MainActivity : Activity() {
         )
         val args = LaunchArgs.forGame(
             game.path, options.resolution, drivers.driverDirFor(game.path), options.renderScale, options.gpuTurbo,
-        ) + LaunchArgs.extras(settings.presentMode, settings.shaderDiskCache, diag.getBoolean(KEY_PERF_STATS, false), settings.coreLog)
+        ) + LaunchArgs.extras(settings.presentMode, settings.shaderDiskCache, diag.getBoolean(KEY_PERF_STATS, false), settings.coreLog, settings.asyncShaders)
         diag.edit().putLong(KEY_LAST_LAUNCH, System.currentTimeMillis()).apply()
         startActivity(
             Intent(this, GameActivity::class.java)
