@@ -49,7 +49,10 @@ class GameGridAdapter(
         val game = games[position]
         holder.title.text = game.title
         val id = game.titleId ?: if (game.folder.isFile) GameLibrary.imageLabel(game.folder) else ""
-        holder.subtitle.text = listOf(id, com.ppss55.Compatibility.of(game.titleId).label).filter { it.isNotEmpty() }.joinToString(" · ")
+        val status = game.pkg?.let { "PKG ${it.platform.label} · não suportado" } ?: com.ppss55.Compatibility.of(game.titleId).label
+        holder.subtitle.text = listOf(id, status).filter { it.isNotEmpty() }.joinToString(" · ")
+        holder.subtitle.setTextColor(if (game.playable) Color.rgb(138, 150, 170) else Color.rgb(255, 196, 92))
+        view.alpha = if (game.playable) 1f else 0.6f
         holder.placeholder.text = initials(game.title)
         holder.placeholder.visibility = View.GONE
         covers.load(game.icon, holder.cover) { holder.placeholder.visibility = View.VISIBLE }
@@ -84,7 +87,7 @@ class GameGridAdapter(
         val subtitle = TextView(context).apply {
             textSize = 11f
             alpha = 0.65f
-            maxLines = 1
+            maxLines = 2
         }
         val gear = TextView(context).apply {
             text = "⚙"

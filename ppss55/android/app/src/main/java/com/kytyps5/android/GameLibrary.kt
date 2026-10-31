@@ -2,6 +2,7 @@ package com.kytyps5.android
 
 import android.util.Log
 import com.kytyps5.android.library.ParamSfo
+import com.kytyps5.android.library.PkgInfo
 import java.io.File
 import java.io.IOException
 import org.json.JSONException
@@ -18,8 +19,11 @@ data class GameEntry(
     val title: String,
     val titleId: String? = null,
     val icon: File? = null,
+    /** Set for a .pkg: listed so the user sees it, but not launchable (see PkgInfo). */
+    val pkg: PkgInfo? = null,
 ) {
     val path: String get() = folder.absolutePath
+    val playable: Boolean get() = pkg == null
 }
 
 sealed interface ScanResult {
@@ -69,6 +73,12 @@ object GameLibrary {
         children
             .filter { it.isFile && it.extension.lowercase() in IMAGE_EXTENSIONS }
             .mapTo(into) { GameEntry(folder = it, title = it.nameWithoutExtension) }
+        children
+            .filter { it.isFile && it.extension.lowercase() == PkgInfo.EXTENSION }
+            .mapNotNullTo(into) { file ->
+                val info = PkgInfo.read(file) ?: return@mapNotNullTo null
+                GameEntry(folder = file, title = info.title ?: file.nameWithoutExtension, titleId = info.titleId, pkg = info)
+            }
         if (depth >= MAX_SCAN_DEPTH) return
         children.filter { it.isDirectory && !it.name.startsWith(".") }
             .forEach { collect(it, depth + 1, into) }

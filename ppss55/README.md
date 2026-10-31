@@ -56,6 +56,11 @@ ARM64 (357 MB com símbolos, 37 MB sem).
   Por jogo: controles, resolução, escala, driver, presets e variáveis `KYTY_*` (do app original).
 - Biblioteca: só os formatos que o núcleo lê — pasta extraída com `sce_sys/param.json`, imagem `.exfat`,
   arquivo `.zar`. Nome, ícone (`icon0.png`), Title ID e status de compatibilidade.
+- **Arquivos `.pkg`:** são listados (PS4 ou PS5, Content ID, tipo, DRM e, nos PKG de PS4 com `param.sfo`
+  em texto puro, o nome do jogo — `library/PkgInfo.kt`), mas marcados como **não suportados**. O conteúdo
+  de um `.pkg` comprado é criptografado com chaves da Sony ligadas à licença; o PPSS55 não tem nem deriva
+  essas chaves e não quebra DRM. Ao tocar, o app explica como obter a pasta descriptografada fazendo o
+  dump do jogo instalado no seu próprio console.
 
 ![Controles em repouso](docs/controller_idle.png)
 ![Cruz, D-pad ↑, R2 e analógico esquerdo pressionados](docs/controller_pressed.png)

@@ -403,13 +403,24 @@ class MainActivity : Activity() {
             is ScanResult.Failure -> showMessage(result.message)
             is ScanResult.Found -> when {
                 result.games.isEmpty() ->
-                    showMessage("Nenhum jogo aqui. Formatos suportados pelo núcleo: pasta extraída com sce_sys/param.json, imagem .exfat ou arquivo .zar (até 3 níveis de subpastas).")
-                else -> showMessage("${result.games.size} jogo(s). Toque para iniciar; ⚙ ou segure para ajustes do jogo.")
+                    showMessage("Nenhum jogo aqui. Formatos suportados pelo núcleo: pasta extraída com sce_sys/param.json, imagem .exfat ou arquivo .zar (até 3 níveis de subpastas). Arquivos .pkg são listados, mas não rodam.")
+                else -> {
+                    val pkgs = result.games.count { !it.playable }
+                    val playable = result.games.size - pkgs
+                    showMessage(
+                        "$playable jogo(s) jogável(is). Toque para iniciar; ⚙ ou segure para ajustes do jogo." +
+                            if (pkgs > 0) " $pkgs arquivo(s) .pkg encontrados: não suportados (toque para saber por quê)." else "",
+                    )
+                }
             }
         }
     }
 
     private fun launch(game: GameEntry) {
+        game.pkg?.let { pkg ->
+            dialog("${game.title}: .pkg não suportado", Ui.text(this, pkg.explanation(), 14f))
+            return
+        }
         if (!NativeLibrary.isInstalled(this)) {
             showMessage(NativeLibrary.MISSING_MESSAGE)
             return
