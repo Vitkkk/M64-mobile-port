@@ -9,13 +9,13 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * Per-session log file. The game process starts `logcat --pid=<self>` writing straight into a file in
- * Download/PPSS55/logs, so the file keeps everything up to the moment the game dies, even on a
- * native crash (logcat is a separate process). The launcher then finds that file, stops a logcat
- * left behind by a crash, and checks it for crash markers.
+ * Per-session log file in Download/PPSS55/logs. The game process creates it and hands its path to the
+ * core (KYTY_STDOUT_FILE); the core writes every console line into it, flushed per line, so the file
+ * keeps everything up to the moment the game dies. The launcher then checks it for crash markers.
  */
 object SessionLog {
     private const val PREFIX = "ppss55-"
+    const val ENV_STDOUT_FILE = "KYTY_STDOUT_FILE"
     private val CRASH_MARKERS = listOf(
         // Kyty's EXIT_IF / EXIT_NOT_IMPLEMENTED report (common/assert.cpp), then Android's own crash lines.
         "--- Fatal Error ---", "--- Error ---", "Fatal signal", "Abort message", "backtrace:", "FATAL EXCEPTION",
@@ -43,10 +43,9 @@ object SessionLog {
             append("App: ${runCatching { context.packageManager.getPackageInfo(context.packageName, 0).versionName }.getOrNull()}\n\n")
         }
         file.writeText(header)
-        ProcessBuilder("logcat", "-v", "threadtime", "--pid=${Process.myPid()}")
-            .redirectErrorStream(true)
-            .redirectOutput(ProcessBuilder.Redirect.appendTo(file))
-            .start()
+        // The core appends every console line here itself (patch 0003, KYTY_STDOUT_FILE), which
+        // works even where an app gets nothing back from logcat.
+        android.system.Os.setenv(ENV_STDOUT_FILE, file.absolutePath, true)
         file
     }.getOrNull()
 

@@ -46,14 +46,14 @@ class GameActivity : SDLActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        // PPSS55: capture this session's log to Download/PPSS55/logs before anything native runs.
+        // Before super.onCreate: SDL loads the emulator (and Mesa reads TU_DEBUG etc.) from there on.
+        GameEnvironment.apply(intent?.getStringArrayExtra(LaunchArgs.EXTRA_ENV))
+        // PPSS55: this session's log file (Download/PPSS55/logs); sets KYTY_STDOUT_FILE for the core.
         com.ppss55.SessionLog.start(
             this,
             intent?.getStringExtra(LaunchArgs.EXTRA_GAME_PATH)?.let { java.io.File(it).name }
                 ?: intent?.getStringArrayExtra(LaunchArgs.EXTRA_GAME_ARGS)?.firstOrNull() ?: "sessao",
         )
-        // Before super.onCreate: SDL loads the emulator (and Mesa reads TU_DEBUG etc.) from there on.
-        GameEnvironment.apply(intent?.getStringArrayExtra(LaunchArgs.EXTRA_ENV))
         // Also before super.onCreate: the game's config presets must be in place when it boots.
         // The path comes from the launch args too, so adb launches (tools/kyrun.sh) get them as well.
         presetLaunch = GamePresets(this, LauncherSettings(this)).prepareLaunch(

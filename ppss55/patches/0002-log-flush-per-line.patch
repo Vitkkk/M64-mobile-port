@@ -1,0 +1,19 @@
+diff --git a/src/common/logging/log.cpp b/src/common/logging/log.cpp
+index 2f91894a..c4df1440 100644
+--- a/src/common/logging/log.cpp
++++ b/src/common/logging/log.cpp
+@@ -48,7 +48,13 @@ std::shared_ptr<spdlog::logger> MakeFileLogger(std::string                  name
+ 
+ 	const bool truncate = std::getenv(Log::RelaunchedVariable) == nullptr;
+ 	auto       sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(path.native(), truncate);
+-	return MakeLogger(std::move(name), std::move(sink));
++	auto       logger = MakeLogger(std::move(name), std::move(sink));
++	// PPSS55: KYTY_LOG_FLUSH=1 writes every line through, so a native crash cannot lose the last
++	// (most useful) lines still sitting in the stdio buffer. Costs I/O; meant for diagnosis.
++	if (const char* flush = std::getenv("KYTY_LOG_FLUSH"); flush != nullptr && flush[0] == '1') {
++		logger->flush_on(spdlog::level::trace);
++	}
++	return logger;
+ }
+ 
+ static bool HasStyle(fmt::text_style style) {

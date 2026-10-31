@@ -104,6 +104,13 @@ class LauncherSettings(context: Context) {
             prefs.edit().putBoolean(KEY_TU_SYSMEM, value).apply()
         }
 
+    /** Detailed core log in the session file (--printf-direction Console). Slower; on while diagnosing. */
+    var coreLog: Boolean
+        get() = prefs.getBoolean(KEY_CORE_LOG, true)
+        set(value) {
+            prefs.edit().putBoolean(KEY_CORE_LOG, value).apply()
+        }
+
     /** Environment lines from the launcher-wide settings; a game's own lines come after and win. */
     fun globalEnv(): List<String> = buildList {
         add("$ENV_AUDIO_LATENCY=$audioLatencyMs")
@@ -157,6 +164,7 @@ class LauncherSettings(context: Context) {
         const val DEFAULT_AUDIO_LATENCY_MS = 120
         private const val KEY_AUDIO_LATENCY = "ppss55_audio_latency_ms"
         private const val KEY_RP_OPS_OFF = "ppss55_rp_ops_off"
+        private const val KEY_CORE_LOG = "ppss55_core_log"
         private const val KEY_TU_SYSMEM = "ppss55_tu_sysmem"
         private const val KEY_ONBOARDED = "ppss55_onboarded"
         private const val KEY_GAMES_TREE_URI = "ppss55_games_tree_uri"

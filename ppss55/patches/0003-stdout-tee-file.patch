@@ -1,0 +1,29 @@
+diff --git a/src/main.cpp b/src/main.cpp
+index 41b91841..ba208550 100644
+--- a/src/main.cpp
++++ b/src/main.cpp
+@@ -68,8 +68,24 @@ static std::string GetBuildString() {
+ // that a detached thread drains into logcat under the "Kyty" tag, one line per record.
+ constexpr size_t kLogcatMaxLineLength = 1000; // __android_log_write truncates longer lines
+ 
++// PPSS55: some devices return nothing to an app reading logcat, so every console line is also
++// appended to the file named by KYTY_STDOUT_FILE (flushed per line, so it survives a crash).
++static FILE* StdoutTeeFile() {
++	static FILE* file = [] {
++		const char* path = std::getenv("KYTY_STDOUT_FILE");
++		FILE*       f    = (path != nullptr && path[0] != '\0') ? std::fopen(path, "a") : nullptr;
++		return f;
++	}();
++	return file;
++}
++
+ static void WriteLogcatLine(std::string& line) {
+ 	__android_log_write(ANDROID_LOG_INFO, "Kyty", line.c_str());
++	if (FILE* tee = StdoutTeeFile(); tee != nullptr) {
++		std::fwrite(line.data(), 1, line.size(), tee);
++		std::fputc('\n', tee);
++		std::fflush(tee);
++	}
+ 	line.clear();
+ }
+ 

@@ -278,6 +278,7 @@ class MainActivity : Activity() {
             addView(toggle("Não fundir limpezas de tela nos passes (KYTY_RP_OPS=0)", settings.rpOpsOff) { settings.rpOpsOff = it })
             addView(toggle("Turnip sem renderização em blocos (TU_DEBUG=sysmem, mais lento)", settings.turnipSysmem) { settings.turnipSysmem = it })
             addView(toggle("Mostrar FPS / frame time (HUD)", settings.hudEnabled) { settings.hudEnabled = it })
+            addView(toggle("Log detalhado do núcleo (Download/PPSS55/logs; um pouco mais lento)", settings.coreLog) { settings.coreLog = it })
             addView(toggle("Registrar estatísticas por segundo (--perf-stats)", diag.getBoolean(KEY_PERF_STATS, false)) { diag.edit().putBoolean(KEY_PERF_STATS, it).apply() })
             addView(toggle("Controles virtuais na tela", settings.touchControlsEnabled) { settings.touchControlsEnabled = it })
             addView(toggle(GameSettingsDialog.GPU_TURBO_LABEL, settings.gpuTurbo) { settings.gpuTurbo = it })
@@ -364,7 +365,7 @@ class MainActivity : Activity() {
         diag.edit().putLong(KEY_SELFTEST_START, now).putLong(KEY_LAST_LAUNCH, now).apply()
         startActivity(
             Intent(this, GameActivity::class.java)
-                .putExtra(LaunchArgs.EXTRA_GAME_ARGS, arrayOf(LaunchArgs.FLAG_FEX_SELFTEST))
+                .putExtra(LaunchArgs.EXTRA_GAME_ARGS, arrayOf(LaunchArgs.FLAG_FEX_SELFTEST) + LaunchArgs.CONSOLE_LOG)
                 .putExtra(LaunchArgs.EXTRA_TOUCH_CONTROLS, false)
                 .putExtra(LaunchArgs.EXTRA_HUD, false),
         )
@@ -375,7 +376,8 @@ class MainActivity : Activity() {
         if (start == 0L) return
         diag.edit().remove(KEY_SELFTEST_START).apply()
         worker.execute {
-            val summary = LogReader.selfTestSummary(LogReader.read(start - 1000))
+            val fromFile = SessionLog.latest(this, start)?.let { runCatching { it.readLines() }.getOrNull() }.orEmpty()
+            val summary = LogReader.selfTestSummary(fromFile.ifEmpty { LogReader.read(start - 1000) })
             mainHandler.post {
                 dialog("Auto-teste FEXCore", Ui.text(this, summary, 12f).apply { typeface = android.graphics.Typeface.MONOSPACE; setTextIsSelectable(true) })
             }
@@ -384,7 +386,9 @@ class MainActivity : Activity() {
 
     private fun showLog(since: Long) {
         worker.execute {
-            val lines = LogReader.read(if (since > 0) since - 1000 else 0)
+            val session = SessionLog.latest(this, if (since > 0) since else 0)
+            val lines = session?.let { runCatching { it.readLines().takeLast(4000) }.getOrNull() }
+                ?: LogReader.read(if (since > 0) since - 1000 else 0)
             val text = if (lines.isEmpty()) "(log vazio)" else lines.joinToString("\n")
             mainHandler.post {
                 val view = Ui.text(this, text, 10f).apply { typeface = android.graphics.Typeface.MONOSPACE; setTextIsSelectable(true) }
@@ -498,7 +502,7 @@ class MainActivity : Activity() {
         )
         val args = LaunchArgs.forGame(
             game.path, options.resolution, drivers.driverDirFor(game.path), options.renderScale, options.gpuTurbo,
-        ) + LaunchArgs.extras(settings.presentMode, settings.shaderDiskCache, diag.getBoolean(KEY_PERF_STATS, false))
+        ) + LaunchArgs.extras(settings.presentMode, settings.shaderDiskCache, diag.getBoolean(KEY_PERF_STATS, false), settings.coreLog)
         diag.edit().putLong(KEY_LAST_LAUNCH, System.currentTimeMillis()).apply()
         startActivity(
             Intent(this, GameActivity::class.java)

@@ -72,9 +72,13 @@ object LaunchArgs {
     private const val FLAG_SHADER_DISK_CACHE = "--shader-disk-cache"
 
     /** Extra emulator flags from launcher-wide PPSS55 settings, appended after [forGame]'s. */
-    fun extras(presentMode: PresentMode, shaderDiskCache: Boolean, perfStats: Boolean): Array<String> =
+    fun extras(presentMode: PresentMode, shaderDiskCache: Boolean, perfStats: Boolean, coreLog: Boolean = true): Array<String> =
         arrayOf(FLAG_PRESENT_MODE, presentMode.arg, FLAG_SHADER_DISK_CACHE, if (shaderDiskCache) "1" else "0") +
-            (if (perfStats) arrayOf(FLAG_PERF_STATS) else emptyArray())
+            (if (perfStats) arrayOf(FLAG_PERF_STATS) else emptyArray()) +
+            (if (coreLog) CONSOLE_LOG else emptyArray())
+
+    /** The core logs nothing by default (printf direction Silent); Console reaches the session file. */
+    val CONSOLE_LOG = arrayOf("--printf-direction", "Console")
 
     /** Max Adreno GPU clock (device-global; the emulator resets it on exit and in the background). */
     const val FLAG_GPU_TURBO = "--gpu-turbo"
