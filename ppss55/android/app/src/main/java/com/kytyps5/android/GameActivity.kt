@@ -46,6 +46,12 @@ class GameActivity : SDLActivity() {
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        // PPSS55: capture this session's log to Download/PPSS55/logs before anything native runs.
+        com.ppss55.SessionLog.start(
+            this,
+            intent?.getStringExtra(LaunchArgs.EXTRA_GAME_PATH)?.let { java.io.File(it).name }
+                ?: intent?.getStringArrayExtra(LaunchArgs.EXTRA_GAME_ARGS)?.firstOrNull() ?: "sessao",
+        )
         // Before super.onCreate: SDL loads the emulator (and Mesa reads TU_DEBUG etc.) from there on.
         GameEnvironment.apply(intent?.getStringArrayExtra(LaunchArgs.EXTRA_ENV))
         // Also before super.onCreate: the game's config presets must be in place when it boots.

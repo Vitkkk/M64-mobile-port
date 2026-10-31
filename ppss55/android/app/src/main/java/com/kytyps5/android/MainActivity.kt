@@ -32,6 +32,7 @@ import com.kytyps5.android.presets.GamePresets
 import com.ppss55.Compatibility
 import com.ppss55.DeviceProbe
 import com.ppss55.LogReader
+import com.ppss55.SessionLog
 import com.ppss55.Ui
 import com.ppss55.WelcomeActivity
 import java.io.File
@@ -115,6 +116,56 @@ class MainActivity : Activity() {
             showMessage("Conceda o acesso a todos os arquivos para procurar jogos.")
         }
         reportPendingSelfTest()
+        reportLastSession()
+    }
+
+    /**
+     * After a game returns: stop a logcat left behind by a crash and, if the session log shows a
+     * crash, say so with the file path and an excerpt that can be shared.
+     */
+    private fun reportLastSession() {
+        val since = diag.getLong(KEY_LAST_LAUNCH, 0)
+        if (since == 0L || diag.getLong(KEY_REPORTED_LAUNCH, 0) == since) return
+        diag.edit().putLong(KEY_REPORTED_LAUNCH, since).apply()
+        worker.execute {
+            SessionLog.stopOrphans()
+            val file = SessionLog.latest(this, since) ?: return@execute
+            val excerpt = SessionLog.crashExcerpt(file)
+            if (excerpt.isEmpty()) {
+                mainHandler.post { showMessage("Log da sessão salvo em ${file.path}") }
+                return@execute
+            }
+            mainHandler.post { showCrash(file, excerpt) }
+        }
+    }
+
+    private fun showCrash(file: File, excerpt: List<String>) {
+        val body = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            addView(Ui.text(this@MainActivity, "O jogo fechou com erro. O log completo foi salvo em:\n${file.path}\n\nEnvie esse arquivo para análise.", 13f))
+            addView(Ui.spacer(this@MainActivity, 8))
+            addView(Ui.button(this@MainActivity, "Compartilhar log", primary = true) { shareLog(file) })
+            addView(Ui.spacer(this@MainActivity, 8))
+            addView(Ui.text(this@MainActivity, excerpt.joinToString("\n"), 10f).apply {
+                typeface = android.graphics.Typeface.MONOSPACE
+                setTextIsSelectable(true)
+            })
+        }
+        dialog("Falha na última sessão", body)
+    }
+
+    /** Shares the start (device info) and the last part of the log as text (no FileProvider needed). */
+    private fun shareLog(file: File) {
+        val head = runCatching { file.readLines().take(20).joinToString("\n") }.getOrDefault("")
+        val text = "$head\n...\n${SessionLog.tail(file, 1500)}".takeLast(400_000)
+        startActivity(
+            Intent.createChooser(
+                Intent(Intent.ACTION_SEND).setType("text/plain")
+                    .putExtra(Intent.EXTRA_SUBJECT, "PPSS55 log ${file.name}")
+                    .putExtra(Intent.EXTRA_TEXT, text),
+                "Compartilhar log",
+            ),
+        )
     }
 
     override fun onDestroy() {
@@ -280,6 +331,11 @@ class MainActivity : Activity() {
             addView(Ui.button(c, "Auto-teste da CPU x86-64 (FEXCore)") { runFexSelfTest() })
             addView(Ui.spacer(c, 6))
             addView(Ui.button(c, "Ver log da última sessão") { showLog(diag.getLong(KEY_LAST_LAUNCH, 0)) })
+            addView(Ui.spacer(c, 6))
+            addView(Ui.button(c, "Compartilhar log da última sessão") {
+                SessionLog.latest(this@MainActivity, 0)?.let(::shareLog) ?: showMessage("Nenhum log de sessão ainda.")
+            })
+            addView(Ui.text(c, "Logs de cada sessão: ${SessionLog.directory(c).path}", 12f, Ui.DIM))
             addView(Ui.spacer(c, 8))
             addView(result)
         }
@@ -476,6 +532,7 @@ class MainActivity : Activity() {
         private const val DIAG_PREFS = "ppss55_diag"
         private const val KEY_SELFTEST_START = "selftest_start"
         private const val KEY_LAST_LAUNCH = "last_launch"
+        private const val KEY_REPORTED_LAUNCH = "reported_launch"
         private const val KEY_PERF_STATS = "perf_stats"
     }
 }
