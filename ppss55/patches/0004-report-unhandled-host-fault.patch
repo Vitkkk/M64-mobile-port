@@ -1,0 +1,151 @@
+diff --git a/src/common/hostException.cpp b/src/common/hostException.cpp
+index c2cddcee..cc2e7412 100644
+--- a/src/common/hostException.cpp
++++ b/src/common/hostException.cpp
+@@ -21,6 +21,10 @@
+ #include <ucontext.h> // IWYU pragma: keep
+ #if KYTY_HOST_ARM64
+ #include <asm/sigcontext.h> // esr_context, ESR_MAGIC
++#include <cstring>
++#include <dlfcn.h>
++#include <fcntl.h>
++#include <sys/prctl.h>
+ #endif
+ #endif
+ #endif
+@@ -223,10 +227,19 @@ static void SignalHandler(int sig, siginfo_t* si, void* uctx) {
+ constexpr uint64_t PAGE_FAULT_ERROR_WRITE       = 0x02;
+ constexpr uint64_t PAGE_FAULT_ERROR_INSTRUCTION = 0x10;
+ 
+-// Let the kernel handle an unresolved fault on retry.
++// PPSS55: the handlers that were installed before ours (on Android, debuggerd's crash handler). An
++// unresolved fault goes back to them so the system still writes a tombstone with a backtrace.
++static struct sigaction g_previous_action[NSIG] {};
++static bool             g_has_previous_action[NSIG] {};
++
++// Let the kernel (or the previous handler) handle an unresolved fault on retry.
+ static void ChainToDefault(int signal_number) noexcept {
+ 	// The process dies when the fault is retried: undo external state (GPU clocks) first.
+ 	RunProcessExitHooks();
++	if (signal_number > 0 && signal_number < NSIG && g_has_previous_action[signal_number]) {
++		::sigaction(signal_number, &g_previous_action[signal_number], nullptr);
++		return;
++	}
+ 	struct sigaction restore {};
+ 	restore.sa_handler = SIG_DFL;
+ 	sigemptyset(&restore.sa_mask);
+@@ -234,6 +247,75 @@ static void ChainToDefault(int signal_number) noexcept {
+ 	::sigaction(signal_number, &restore, nullptr);
+ }
+ 
++#if KYTY_HOST_ARM64
++// PPSS55: one-shot report of an unresolved host fault, written straight to KYTY_STDOUT_FILE with
++// write(2) (the stdout pipe's drain thread may never run again). Lines are written one at a time so
++// a nested fault while walking the stack still leaves what was already found.
++static void ReportUnhandledFault(int signal_number, const siginfo_t* signal_info, const ucontext_t* context) {
++	static std::atomic<bool> reported {false};
++	if (reported.exchange(true)) {
++		return;
++	}
++	const char* path = std::getenv("KYTY_STDOUT_FILE");
++	const int   fd   = (path != nullptr && path[0] != '\0') ? ::open(path, O_WRONLY | O_APPEND) : STDERR_FILENO;
++	if (fd < 0) {
++		return;
++	}
++	char line[512];
++	auto emit = [&](int n) {
++		if (n > 0) {
++			(void)::write(fd, line, static_cast<size_t>(std::min(n, static_cast<int>(sizeof(line) - 1))));
++		}
++	};
++	auto where = [&](const char* label, uint64_t addr) {
++		Dl_info dl {};
++		if (addr != 0 && ::dladdr(reinterpret_cast<void*>(addr), &dl) != 0 && dl.dli_fname != nullptr) {
++			const char* lib = std::strrchr(dl.dli_fname, '/');
++			emit(std::snprintf(line, sizeof(line), "  %s 0x%016llx %s+0x%llx (%s)\n", label,
++			                   static_cast<unsigned long long>(addr), lib != nullptr ? lib + 1 : dl.dli_fname,
++			                   static_cast<unsigned long long>(addr - reinterpret_cast<uint64_t>(dl.dli_fbase)),
++			                   dl.dli_sname != nullptr ? dl.dli_sname : "?"));
++		} else {
++			emit(std::snprintf(line, sizeof(line), "  %s 0x%016llx (fora de bibliotecas: código JIT/guest?)\n", label,
++			                   static_cast<unsigned long long>(addr)));
++		}
++	};
++	const auto& mc = context->uc_mcontext;
++	emit(std::snprintf(line, sizeof(line),
++	                   "--- Fatal Error ---\nPPSS55: falha nativa não tratada: sinal %d código %d endereço 0x%016llx thread %d\n",
++	                   signal_number, signal_info->si_code,
++	                   static_cast<unsigned long long>(reinterpret_cast<uint64_t>(signal_info->si_addr)), ::gettid()));
++	char thread_name[32] = {};
++	if (::prctl(PR_GET_NAME, thread_name) == 0) {
++		emit(std::snprintf(line, sizeof(line), "  nome da thread: %s\n", thread_name));
++	}
++	where("pc", mc.pc);
++	where("lr", mc.regs[30]);
++	emit(std::snprintf(line, sizeof(line), "  sp 0x%016llx fp 0x%016llx\n", static_cast<unsigned long long>(mc.sp),
++	                   static_cast<unsigned long long>(mc.regs[29])));
++	// Frame-pointer walk, bounded to the faulting thread's stack neighbourhood.
++	uint64_t fp = mc.regs[29];
++	for (int i = 0; i < 24; i++) {
++		if (fp == 0 || (fp & 0xF) != 0 || fp < mc.sp || fp > mc.sp + 8 * 1024 * 1024) {
++			break;
++		}
++		const auto* frame = reinterpret_cast<const uint64_t*>(fp);
++		const uint64_t next = frame[0];
++		const uint64_t ret  = frame[1];
++		char label[16];
++		std::snprintf(label, sizeof(label), "#%02d", i);
++		where(label, ret);
++		if (next <= fp) {
++			break;
++		}
++		fp = next;
++	}
++	if (fd != STDERR_FILENO) {
++		::close(fd);
++	}
++}
++#endif
++
+ #if KYTY_HOST_ARM64
+ // ESR_EL1 fields (ARM ARM D17.2.40): exception class and the data-abort write-not-read bit.
+ constexpr uint64_t ESR_EC_SHIFT               = 26;
+@@ -299,6 +381,7 @@ static void SignalHandler(int signal_number, siginfo_t* signal_info, void* nativ
+ 		return;
+ 	}
+ 
++	ReportUnhandledFault(signal_number, signal_info, context);
+ 	ChainToDefault(signal_number);
+ }
+ #else
+@@ -410,12 +493,29 @@ bool InstallHandler(Handler handler) {
+ 	action.sa_flags = SA_SIGINFO | SA_RESTART | SA_ONSTACK;
+ 
+ 	for (const int signal_number: {SIGSEGV, SIGBUS, SIGILL}) {
+-		if (::sigaction(signal_number, &action, nullptr) != 0) {
++		if (::sigaction(signal_number, &action, &g_previous_action[signal_number]) != 0) {
+ 			g_handler.store(nullptr, std::memory_order_release);
+ 			g_install_state.store(0, std::memory_order_release);
+ 			printf("sigaction(%d) failed\n", signal_number);
+ 			return false;
+ 		}
++		const auto& prev = g_previous_action[signal_number];
++		const void* prev_fn = (prev.sa_flags & SA_SIGINFO) != 0 ? reinterpret_cast<const void*>(prev.sa_sigaction)
++		                                                         : reinterpret_cast<const void*>(prev.sa_handler);
++		bool chain = prev_fn != nullptr && prev_fn != reinterpret_cast<const void*>(SIG_DFL) &&
++		             prev_fn != reinterpret_cast<const void*>(SIG_IGN);
++#if KYTY_HOST_ARM64
++		// Only a handler outside the emulator library (debuggerd lives in the linker/libc); chaining
++		// into an in-library handler such as FEX's could loop on the retried fault.
++		Dl_info prev_info {};
++		Dl_info self_info {};
++		if (chain && ::dladdr(prev_fn, &prev_info) != 0 &&
++		    ::dladdr(reinterpret_cast<const void*>(&ChainToDefault), &self_info) != 0 &&
++		    prev_info.dli_fbase == self_info.dli_fbase) {
++			chain = false;
++		}
++#endif
++		g_has_previous_action[signal_number] = chain;
+ 	}
+ #endif
+ 

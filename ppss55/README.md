@@ -38,6 +38,7 @@ O submódulo `core/` fica fixado no commit do upstream; as mudanças do PPSS55 n
 |---|---|
 | `0001-audio-configurable-latency.patch` | Profundidade da fila de áudio SDL lida de `KYTY_AUDIO_LATENCY_MS` (10–500 ms), limite de 16 → 64 buffers do jogo |
 | `0002-log-flush-per-line.patch` | `KYTY_LOG_FLUSH=1`: o log em arquivo (`--printf-direction File`) grava cada linha na hora |
+| `0004-report-unhandled-host-fault.patch` | Falha nativa não tratada (ARM64): escreve sinal, endereço, thread, PC/LR com biblioteca+offset (`dladdr`) e pilha por frame pointer no log da sessão, e devolve a falha ao tratador anterior (debuggerd) em vez de `SIG_DFL`, para o Android gerar o tombstone. O PvZ morria com SIGSEGV sem nenhum rastro |
 | `0003-stdout-tee-file.patch` | Toda linha que o núcleo manda ao logcat também vai para `KYTY_STDOUT_FILE` (gravada por linha). No 9S Pro o app não recebe nada lendo o logcat, então os logs de sessão usam esse arquivo |
 
 ## Por que este núcleo

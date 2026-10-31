@@ -23,7 +23,7 @@ object ExitReasons {
             appendLine("Motivo: $reason (código ${info.reason}), status ${info.status}")
             info.description?.let { appendLine("Descrição: $it") }
             appendLine("Importância: ${info.importance} · PSS: ${info.pss / 1024} MB · RSS: ${info.rss / 1024} MB")
-            appendLine("Explicação: ${explain(info.reason)}")
+            appendLine("Explicação: ${explain(info.reason, info.status)}")
         }
         val tombstone = if (info.reason == ApplicationExitInfo.REASON_CRASH_NATIVE) {
             runCatching { info.traceInputStream?.use { String(it.readBytes()) } }.getOrNull()
@@ -41,7 +41,7 @@ object ExitReasons {
         if (list.isEmpty()) return "O Android não tem registro de saídas do processo do jogo."
         val fmt = java.text.SimpleDateFormat("dd/MM HH:mm:ss", java.util.Locale.US)
         return list.joinToString("\n") { i ->
-            "${fmt.format(java.util.Date(i.timestamp))} · ${reasonName(i.reason)} · ${i.description ?: ""} · PSS ${i.pss / 1024} MB\n  → ${explain(i.reason)}"
+            "${fmt.format(java.util.Date(i.timestamp))} · ${reasonName(i.reason)} · ${i.description ?: ""} · PSS ${i.pss / 1024} MB\n  → ${explain(i.reason, i.status)}"
         }
     }
 
@@ -67,10 +67,19 @@ object ExitReasons {
         else -> "UNKNOWN"
     }
 
-    private fun explain(r: Int) = when (r) {
+    private fun signalName(sig: Int) = when (sig) {
+        4 -> "SIGILL"; 6 -> "SIGABRT"; 7 -> "SIGBUS"; 9 -> "SIGKILL"; 11 -> "SIGSEGV"; 15 -> "SIGTERM"
+        else -> "sinal $sig"
+    }
+
+    private fun explain(r: Int, status: Int) = when (r) {
+        ApplicationExitInfo.REASON_SIGNALED -> when (status) {
+            9 -> "SIGKILL: o sistema matou o processo (normalmente falta de memória ou o gerenciador de RAM do fabricante)."
+            11, 7, 4, 6 -> "${signalName(status)}: crash nativo (acesso inválido à memória ou instrução inválida) no núcleo, FEX ou driver de GPU."
+            else -> "${signalName(status)}: o processo recebeu esse sinal."
+        }
         ApplicationExitInfo.REASON_LOW_MEMORY -> "o Android matou o jogo por falta de memória RAM."
         ApplicationExitInfo.REASON_CRASH_NATIVE -> "crash no código nativo (núcleo, FEX ou driver de GPU); veja o tombstone."
-        ApplicationExitInfo.REASON_SIGNALED -> "o processo recebeu um sinal (muitas vezes o killer de memória do fabricante)."
         ApplicationExitInfo.REASON_EXIT_SELF -> "o próprio jogo/núcleo encerrou o processo."
         ApplicationExitInfo.REASON_EXCESSIVE_RESOURCE_USAGE -> "o sistema encerrou por uso excessivo de recursos (CPU/temperatura)."
         ApplicationExitInfo.REASON_ANR -> "o app parou de responder."

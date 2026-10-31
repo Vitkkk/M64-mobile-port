@@ -77,7 +77,7 @@ object SessionLog {
         val stubs = lines.filter { "Unresolved import stub called" in it }
             .map { it.substringAfter("symbol=", it.substringAfter("called: ")).substringBefore(" type=") }
             .distinct()
-        val errors = lines.withIndex().filter { (_, l) -> CRASH_MARKERS.any { l.contains(it) } }
+        val errors = lines.withIndex().filter { (_, l) -> !l.startsWith("=== Saída") && CRASH_MARKERS.any { l.contains(it) } }
             .take(5).flatMap { (i, _) -> lines.subList(i, minOf(lines.size, i + 12)) }
         return buildString {
             header.forEach { appendLine(it) }
@@ -94,8 +94,10 @@ object SessionLog {
                 lines.subList(exitAt, minOf(lines.size, exitAt + 80)).forEach { appendLine(it.take(300)) }
                 appendLine()
             }
+            // The tail must not repeat the exit block shown above.
+            val tailEnd = if (exitAt >= 0) exitAt else lines.size
             appendLine("=== Últimas $tailLines linhas ===")
-            lines.takeLast(tailLines).forEach { appendLine(it.take(300)) }
+            lines.subList(maxOf(0, tailEnd - tailLines), tailEnd).forEach { appendLine(it.take(300)) }
         }
     }
 
