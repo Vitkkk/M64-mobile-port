@@ -28,6 +28,9 @@ jobs:
           git submodule update --init ppss55/core
           git -C ppss55/core submodule update --init --recursive --depth 1 --jobs 8
 
+      - name: PPSS55 core patches
+        run: ppss55/tools/apply_core_patches.sh
+
       - name: Free disk space
         run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost
 
@@ -47,7 +50,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: ~/.cache/ccache
-          key: ppss55-ccache-${{ hashFiles('.gitmodules') }}-${{ github.sha }}
+          key: ppss55-ccache-${{ hashFiles('.gitmodules', 'ppss55/patches/*.patch') }}-${{ github.sha }}
           restore-keys: ppss55-ccache-
 
       - name: FFmpeg cache

@@ -83,6 +83,13 @@ class LauncherSettings(context: Context) {
             prefs.edit().putString(KEY_PRESENT_MODE, value.storageValue).apply()
         }
 
+    /** Audio queue target passed as KYTY_AUDIO_LATENCY_MS (core patch 0001). */
+    var audioLatencyMs: Int
+        get() = prefs.getInt(KEY_AUDIO_LATENCY, DEFAULT_AUDIO_LATENCY_MS).takeIf { it in AUDIO_LATENCY_CHOICES } ?: DEFAULT_AUDIO_LATENCY_MS
+        set(value) {
+            prefs.edit().putInt(KEY_AUDIO_LATENCY, value).apply()
+        }
+
     /** --shader-disk-cache: keep translated shaders between runs. */
     var shaderDiskCache: Boolean
         get() = prefs.getBoolean(KEY_SHADER_CACHE, true)
@@ -123,6 +130,11 @@ class LauncherSettings(context: Context) {
         const val DEFAULT_GPU_TURBO = true
         private const val PREFS_NAME = "kytyps5_launcher"
         private const val KEY_GAMES_ROOT = "games_root"
+        const val ENV_AUDIO_LATENCY = "KYTY_AUDIO_LATENCY_MS"
+        val AUDIO_LATENCY_CHOICES = listOf(40, 80, 120, 200)
+        /** 40 ms crackled on the REDMAGIC 9S Pro (first user report); 120 ms is the starting point. */
+        const val DEFAULT_AUDIO_LATENCY_MS = 120
+        private const val KEY_AUDIO_LATENCY = "ppss55_audio_latency_ms"
         private const val KEY_ONBOARDED = "ppss55_onboarded"
         private const val KEY_GAMES_TREE_URI = "ppss55_games_tree_uri"
         private const val KEY_PRESENT_MODE = "ppss55_present_mode"

@@ -8,3 +8,4 @@
 [submodule "ppss55/core"]
 	path = ppss55/core
 	url = https://github.com/tarek369/KytyPS5-Android.git
+	ignore = dirty

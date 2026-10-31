@@ -13,6 +13,23 @@ Esta pasta é um projeto separado do port de N64 que vive no restante deste repo
 > Nenhuma afirmação de jogo rodando no REDMAGIC 9S Pro é feita aqui. Os resultados de compatibilidade
 > exibidos no app são os medidos pelo projeto KytyPS5-Android num Adreno 830, marcados com `*`.
 
+## Primeiro relato no aparelho (31/10/2026)
+
+No **REDMAGIC 9S Pro**, o usuário abriu *Plants vs. Zombies: Replanted* até a tela de título com os
+controles de vidro sobre o jogo: imagem correta e jogo responsivo, mas **áudio picotando muito**.
+Correção em andamento: patch `patches/0001-audio-configurable-latency.patch` (buffer de áudio
+configurável, `KYTY_AUDIO_LATENCY_MS`) + opção *Buffer de áudio* nas Configurações (padrão 120 ms; o
+núcleo original usa 40 ms). Ainda falta a confirmação no aparelho.
+
+## Patches sobre o núcleo
+
+O submódulo `core/` fica fixado no commit do upstream; as mudanças do PPSS55 no núcleo ficam em
+`patches/` e são aplicadas por `tools/apply_core_patches.sh` antes de compilar (a CI faz isso).
+
+| Patch | O quê |
+|---|---|
+| `0001-audio-configurable-latency.patch` | Profundidade da fila de áudio SDL lida de `KYTY_AUDIO_LATENCY_MS` (10–500 ms), limite de 16 → 64 buffers do jogo |
+
 ## Por que este núcleo
 
 | Projeto | Situação verificada no código (out/2026) | Decisão |
@@ -76,6 +93,7 @@ Ninja, `glslangValidator`, ccache (opcional). A CI faz exatamente isto: `.github
 ```sh
 git submodule update --init ppss55/core
 git -C ppss55/core submodule update --init --recursive --depth 1
+ppss55/tools/apply_core_patches.sh
 
 export ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/28.2.13676358
 ANDROID_NDK_HOME=$ANDROID_NDK bash ppss55/core/scripts/android/build-ffmpeg-android.sh $PWD/_Build/ffmpeg-android
