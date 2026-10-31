@@ -154,10 +154,9 @@ class MainActivity : Activity() {
         dialog("Falha na última sessão", body)
     }
 
-    /** Shares the start (device info) and the last part of the log as text (no FileProvider needed). */
+    /** Shares a compact report (missing functions called, errors, last lines) as text. */
     private fun shareLog(file: File) {
-        val head = runCatching { file.readLines().take(20).joinToString("\n") }.getOrDefault("")
-        val text = "$head\n...\n${SessionLog.tail(file, 1500)}".takeLast(400_000)
+        val text = SessionLog.report(file).takeLast(200_000)
         startActivity(
             Intent.createChooser(
                 Intent(Intent.ACTION_SEND).setType("text/plain")
@@ -168,11 +167,6 @@ class MainActivity : Activity() {
         )
     }
 
-    override fun onDestroy() {
-        worker.shutdownNow()
-        if (::covers.isInitialized) covers.shutdown()
-        super.onDestroy()
-    }
 
     // ---- layout ----------------------------------------------------------------------------------
 

@@ -66,6 +66,33 @@ object SessionLog {
         return lines.subList(maxOf(0, first - context), minOf(lines.size, first + context * 3))
     }
 
+    /**
+     * Compact report for sharing: header, every distinct stub the game actually *called* (missing
+     * HLE functions), error blocks, then the last [tailLines] lines - small enough to paste in a chat.
+     */
+    fun report(file: File, tailLines: Int = 250): String {
+        val lines = runCatching { file.readLines() }.getOrDefault(emptyList())
+        val header = lines.takeWhile { it.isNotBlank() }.take(6)
+        val stubs = lines.filter { "Unresolved import stub called" in it }
+            .map { it.substringAfter("symbol=", it.substringAfter("called: ")).substringBefore(" type=") }
+            .distinct()
+        val errors = lines.withIndex().filter { (_, l) -> CRASH_MARKERS.any { l.contains(it) } }
+            .take(5).flatMap { (i, _) -> lines.subList(i, minOf(lines.size, i + 12)) }
+        return buildString {
+            header.forEach { appendLine(it) }
+            appendLine("Linhas no log: ${lines.size}")
+            appendLine()
+            appendLine("=== Funções ausentes chamadas pelo jogo (${stubs.size}) ===")
+            stubs.take(60).forEach { appendLine(it) }
+            appendLine()
+            appendLine("=== Erros ===")
+            if (errors.isEmpty()) appendLine("(nenhum relatório de erro do núcleo)") else errors.forEach { appendLine(it) }
+            appendLine()
+            appendLine("=== Últimas $tailLines linhas ===")
+            lines.takeLast(tailLines).forEach { appendLine(it.take(300)) }
+        }
+    }
+
     fun tail(file: File, n: Int): String = runCatching { file.readLines().takeLast(n).joinToString("\n") }.getOrDefault("")
 
     private const val KEEP = 20
