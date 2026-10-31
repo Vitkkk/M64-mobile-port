@@ -16,6 +16,8 @@ import org.libsdl.app.SDLActivity
 class GameActivity : SDLActivity() {
 
     private var overlays: GameOverlays? = null
+    private var sessionLog: java.io.File? = null
+    private var launchOverlay: com.ppss55.LaunchOverlay? = null
 
     /** Launch options of the title's presets that are on (set in onCreate, before SDL asks for the arguments). */
     private var presetLaunch = PresetLaunchArgs.Plan(emptyList(), emptyList())
@@ -49,7 +51,7 @@ class GameActivity : SDLActivity() {
         // Before super.onCreate: SDL loads the emulator (and Mesa reads TU_DEBUG etc.) from there on.
         GameEnvironment.apply(intent?.getStringArrayExtra(LaunchArgs.EXTRA_ENV))
         // PPSS55: this session's log file (Download/PPSS55/logs); sets KYTY_STDOUT_FILE for the core.
-        com.ppss55.SessionLog.start(
+        sessionLog = com.ppss55.SessionLog.start(
             this,
             intent?.getStringExtra(LaunchArgs.EXTRA_GAME_PATH)?.let { java.io.File(it).name }
                 ?: intent?.getStringArrayExtra(LaunchArgs.EXTRA_GAME_ARGS)?.firstOrNull() ?: "sessao",
@@ -79,6 +81,17 @@ class GameActivity : SDLActivity() {
             ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
         )
         overlays = created
+        // PPSS55 loading card (real steps from the core's log) until the first frame.
+        launch.getStringExtra(LaunchArgs.EXTRA_GAME_PATH)?.let { path ->
+            val title = runCatching { GameLibrary.readEntry(java.io.File(path)).title }.getOrDefault(java.io.File(path).name)
+            val loading = com.ppss55.LaunchOverlay(this, sessionLog, path, title)
+            addContentView(
+                loading.view,
+                ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT),
+            )
+            loading.start()
+            launchOverlay = loading
+        }
     }
 
     override fun onResume() {
@@ -95,6 +108,7 @@ class GameActivity : SDLActivity() {
     override fun onTitleChanged(title: CharSequence?, color: Int) {
         super.onTitleChanged(title, color)
         overlays?.onTitle(title)
+        launchOverlay?.onTitle(title)
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

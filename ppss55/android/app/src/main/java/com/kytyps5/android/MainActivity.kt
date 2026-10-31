@@ -495,6 +495,25 @@ class MainActivity : Activity() {
             dialog("${game.title}: .pkg não suportado", Ui.text(this, pkg.explanation(), 14f))
             return
         }
+        // Low free RAM makes Android kill the game process silently mid-run; warn first.
+        val mem = android.app.ActivityManager.MemoryInfo().also { getSystemService(android.app.ActivityManager::class.java)?.getMemoryInfo(it) }
+        val freeGb = mem.availMem / (1024.0 * 1024 * 1024)
+        if (freeGb < MIN_FREE_RAM_GB) {
+            AlertDialog.Builder(this, android.R.style.Theme_Material_Dialog_Alert)
+                .setTitle("Pouca RAM livre")
+                .setMessage(
+                    "Há só %.1f GB livres de %.1f GB. Com pouca memória o Android pode fechar o jogo no meio, sem aviso.\n\n".format(freeGb, mem.totalMem / (1024.0 * 1024 * 1024)) +
+                        "Feche outros apps (ou use o modo jogo/limpeza de RAM do aparelho) e tente de novo.",
+                )
+                .setPositiveButton("Iniciar mesmo assim") { _, _ -> startGame(game) }
+                .setNegativeButton("Cancelar", null)
+                .show()
+            return
+        }
+        startGame(game)
+    }
+
+    private fun startGame(game: GameEntry) {
         if (!NativeLibrary.isInstalled(this)) {
             showMessage(NativeLibrary.MISSING_MESSAGE)
             return
@@ -544,6 +563,7 @@ class MainActivity : Activity() {
         const val EXTRA_PICK_FOLDER = "com.ppss55.extra.PICK_FOLDER"
         private const val REQUEST_PICK_GAMES_FOLDER = 1
         private const val COVER_DP = 150
+        private const val MIN_FREE_RAM_GB = 4.0
         private const val DIAG_PREFS = "ppss55_diag"
         private const val KEY_SELFTEST_START = "selftest_start"
         private const val KEY_LAST_LAUNCH = "last_launch"
