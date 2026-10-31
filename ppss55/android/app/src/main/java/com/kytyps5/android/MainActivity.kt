@@ -273,6 +273,10 @@ class MainActivity : Activity() {
             addView(Ui.text(c, "Buffer de áudio", 14f, bold = true))
             addView(Ui.text(c, "Maior = menos picotes quando o jogo engasga, porém som mais atrasado. 40 ms é o valor original do núcleo.", 12f, Ui.DIM))
             addView(radio(LauncherSettings.AUDIO_LATENCY_CHOICES, settings.audioLatencyMs, { "$it ms" }) { settings.audioLatencyMs = it })
+            addView(Ui.text(c, "Correções de renderização (teste)", 14f, bold = true))
+            addView(Ui.text(c, "Para imagem piscando ou elementos sumindo entre quadros. Teste uma de cada vez e veja se melhora.", 12f, Ui.DIM))
+            addView(toggle("Não fundir limpezas de tela nos passes (KYTY_RP_OPS=0)", settings.rpOpsOff) { settings.rpOpsOff = it })
+            addView(toggle("Turnip sem renderização em blocos (TU_DEBUG=sysmem, mais lento)", settings.turnipSysmem) { settings.turnipSysmem = it })
             addView(toggle("Mostrar FPS / frame time (HUD)", settings.hudEnabled) { settings.hudEnabled = it })
             addView(toggle("Registrar estatísticas por segundo (--perf-stats)", diag.getBoolean(KEY_PERF_STATS, false)) { diag.edit().putBoolean(KEY_PERF_STATS, it).apply() })
             addView(toggle("Controles virtuais na tela", settings.touchControlsEnabled) { settings.touchControlsEnabled = it })
@@ -501,7 +505,7 @@ class MainActivity : Activity() {
                 .putExtra(LaunchArgs.EXTRA_GAME_ARGS, args)
                 .putExtra(LaunchArgs.EXTRA_GAME_PATH, game.path)
                 // Launcher-wide audio buffer first: a game's own KYTY_AUDIO_LATENCY_MS line wins (later duplicates win).
-                .putExtra(LaunchArgs.EXTRA_ENV, (listOf("${LauncherSettings.ENV_AUDIO_LATENCY}=${settings.audioLatencyMs}") + options.env.map { it.toString() }).toTypedArray())
+                .putExtra(LaunchArgs.EXTRA_ENV, (settings.globalEnv() + options.env.map { it.toString() }).toTypedArray())
                 .putExtra(LaunchArgs.EXTRA_HUD, options.hud)
                 .putExtra(LaunchArgs.EXTRA_TOUCH_CONTROLS, options.touchControls),
         )

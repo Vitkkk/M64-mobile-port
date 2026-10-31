@@ -21,6 +21,14 @@ Correção em andamento: patch `patches/0001-audio-configurable-latency.patch` (
 configurável, `KYTY_AUDIO_LATENCY_MS`) + opção *Buffer de áudio* nas Configurações (padrão 120 ms; o
 núcleo original usa 40 ms). Ainda falta a confirmação no aparelho.
 
+### Segundo relato: menu do PvZ piscando
+
+Cada quadro mostra só parte do menu (uma barra, só "Start Adventure", só a lápide) sobre a cor de
+limpeza azul, como se o conteúdo dos passes anteriores fosse perdido. Suspeitas a testar no aparelho,
+expostas em *Configurações → Correções de renderização*: `KYTY_RP_OPS=0` (desliga a fusão de limpezas
+em `loadOp CLEAR`, ligada por padrão com Turnip) e `TU_DEBUG=sysmem` (Turnip sem GMEM). O jogo também
+abriu o teclado de texto do sistema (o PvZ pede nome de jogador), que funcionou.
+
 ## Patches sobre o núcleo
 
 O submódulo `core/` fica fixado no commit do upstream; as mudanças do PPSS55 no núcleo ficam em

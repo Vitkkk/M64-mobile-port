@@ -90,6 +90,27 @@ class LauncherSettings(context: Context) {
             prefs.edit().putInt(KEY_AUDIO_LATENCY, value).apply()
         }
 
+    /** Rendering workaround: KYTY_RP_OPS=0 (no clear folding into a pass's loadOp CLEAR). */
+    var rpOpsOff: Boolean
+        get() = prefs.getBoolean(KEY_RP_OPS_OFF, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_RP_OPS_OFF, value).apply()
+        }
+
+    /** Rendering workaround: TU_DEBUG=sysmem (Turnip renders straight to memory, no GMEM tiles). */
+    var turnipSysmem: Boolean
+        get() = prefs.getBoolean(KEY_TU_SYSMEM, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_TU_SYSMEM, value).apply()
+        }
+
+    /** Environment lines from the launcher-wide settings; a game's own lines come after and win. */
+    fun globalEnv(): List<String> = buildList {
+        add("$ENV_AUDIO_LATENCY=$audioLatencyMs")
+        if (rpOpsOff) add("KYTY_RP_OPS=0")
+        if (turnipSysmem) add("TU_DEBUG=sysmem")
+    }
+
     /** --shader-disk-cache: keep translated shaders between runs. */
     var shaderDiskCache: Boolean
         get() = prefs.getBoolean(KEY_SHADER_CACHE, true)
@@ -135,6 +156,8 @@ class LauncherSettings(context: Context) {
         /** 40 ms crackled on the REDMAGIC 9S Pro (first user report); 120 ms is the starting point. */
         const val DEFAULT_AUDIO_LATENCY_MS = 120
         private const val KEY_AUDIO_LATENCY = "ppss55_audio_latency_ms"
+        private const val KEY_RP_OPS_OFF = "ppss55_rp_ops_off"
+        private const val KEY_TU_SYSMEM = "ppss55_tu_sysmem"
         private const val KEY_ONBOARDED = "ppss55_onboarded"
         private const val KEY_GAMES_TREE_URI = "ppss55_games_tree_uri"
         private const val KEY_PRESENT_MODE = "ppss55_present_mode"
