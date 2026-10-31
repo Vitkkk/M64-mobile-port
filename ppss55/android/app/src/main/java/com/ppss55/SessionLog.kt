@@ -19,6 +19,7 @@ object SessionLog {
     private val CRASH_MARKERS = listOf(
         // Kyty's EXIT_IF / EXIT_NOT_IMPLEMENTED report (common/assert.cpp), then Android's own crash lines.
         "--- Fatal Error ---", "--- Error ---", "Fatal signal", "Abort message", "backtrace:", "FATAL EXCEPTION",
+        "=== Saída do processo do jogo (Android) ===",
     )
 
     fun directory(context: Context): File {
@@ -88,6 +89,11 @@ object SessionLog {
             appendLine("=== Erros ===")
             if (errors.isEmpty()) appendLine("(nenhum relatório de erro do núcleo)") else errors.forEach { appendLine(it) }
             appendLine()
+            val exitAt = lines.indexOfLast { it.startsWith("=== Saída do processo do jogo") }
+            if (exitAt >= 0) {
+                lines.subList(exitAt, minOf(lines.size, exitAt + 80)).forEach { appendLine(it.take(300)) }
+                appendLine()
+            }
             appendLine("=== Últimas $tailLines linhas ===")
             lines.takeLast(tailLines).forEach { appendLine(it.take(300)) }
         }

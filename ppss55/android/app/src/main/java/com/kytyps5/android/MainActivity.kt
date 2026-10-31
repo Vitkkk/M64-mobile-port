@@ -130,7 +130,12 @@ class MainActivity : Activity() {
         worker.execute {
             SessionLog.stopOrphans()
             val file = SessionLog.latest(this, since) ?: return@execute
-            val excerpt = SessionLog.crashExcerpt(file)
+            // What Android recorded about the game process' death (OOM, signal, native crash).
+            val exit = com.ppss55.ExitReasons.lastGameExit(this, since)
+            exit?.let { com.ppss55.ExitReasons.appendTo(file, it) }
+            val excerpt = SessionLog.crashExcerpt(file).ifEmpty {
+                exit?.takeIf { it.reason != "USER_REQUESTED" && it.reason != "EXIT_SELF" }?.text?.lines().orEmpty()
+            }
             if (excerpt.isEmpty()) {
                 mainHandler.post { showMessage("Log da sessão salvo em ${file.path}") }
                 return@execute
@@ -328,6 +333,14 @@ class MainActivity : Activity() {
             })
             addView(Ui.spacer(c, 6))
             addView(Ui.button(c, "Auto-teste da CPU x86-64 (FEXCore)") { runFexSelfTest() })
+            addView(Ui.spacer(c, 6))
+            addView(Ui.button(c, "Por que o jogo fechou? (registro do Android)") {
+                result.text = "Consultando…"
+                worker.execute {
+                    val text = com.ppss55.ExitReasons.recent(this@MainActivity)
+                    mainHandler.post { result.text = text }
+                }
+            })
             addView(Ui.spacer(c, 6))
             addView(Ui.button(c, "Ver log da última sessão") { showLog(diag.getLong(KEY_LAST_LAUNCH, 0)) })
             addView(Ui.spacer(c, 6))
