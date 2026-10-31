@@ -1,0 +1,8 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+# Native libraries are staged here from the NDK build by syncKytyNativeLibs.
+app/src/main/jniLibs/
+.kotlin/

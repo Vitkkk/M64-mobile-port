@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="ppss55_bg">#FF07090E</color>
+    <color name="ppss55_surface">#FF11151E</color>
+    <color name="ppss55_accent">#FF4A9CFF</color>
+    <color name="ppss55_text">#FFE8EEF8</color>
+    <color name="ppss55_text_dim">#FF8A96AA</color>
+</resources>

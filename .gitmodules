@@ -5,3 +5,6 @@
 	path = native/third_party/rt64
 	url = https://github.com/rt64/rt64
 	ignore = dirty
+[submodule "ppss55/core"]
+	path = ppss55/core
+	url = https://github.com/tarek369/KytyPS5-Android.git

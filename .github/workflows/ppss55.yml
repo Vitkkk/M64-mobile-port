@@ -1,0 +1,112 @@
+name: PPSS55 APK
+
+# Builds the PPSS55 debug APK: the KytyPS5-Android core (FEXCore + Kyty, ARM64) from the pinned
+# ppss55/core submodule, then the launcher app in ppss55/android. Only runs when PPSS55 changes.
+on:
+  push:
+    paths: [ 'ppss55/**', '.github/workflows/ppss55.yml', '.gitmodules' ]
+  pull_request:
+    paths: [ 'ppss55/**', '.github/workflows/ppss55.yml', '.gitmodules' ]
+  workflow_dispatch:
+
+concurrency:
+  group: ppss55-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NDK_VERSION: 28.2.13676358
+
+jobs:
+  apk:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Core submodule (recursive, only ppss55/core)
+        run: |
+          git submodule update --init ppss55/core
+          git -C ppss55/core submodule update --init --recursive --depth 1 --jobs 8
+
+      - name: Free disk space
+        run: sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/.ghcup /usr/local/share/boost
+
+      - name: Host tools
+        run: sudo apt-get update && sudo apt-get install -y ninja-build glslang-tools ccache
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Android NDK and CMake
+        run: |
+          yes | "$ANDROID_SDK_ROOT/cmdline-tools/latest/bin/sdkmanager" --install "ndk;${NDK_VERSION}" "cmake;3.22.1" > /dev/null
+          echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/${NDK_VERSION}" >> "$GITHUB_ENV"
+
+      - uses: actions/cache@v4
+        with:
+          path: ~/.cache/ccache
+          key: ppss55-ccache-${{ hashFiles('.gitmodules') }}-${{ github.sha }}
+          restore-keys: ppss55-ccache-
+
+      - name: FFmpeg cache
+        id: ffmpeg
+        uses: actions/cache@v4
+        with:
+          path: _Build/ffmpeg-android/install
+          key: ppss55-ffmpeg-${{ hashFiles('ppss55/core/scripts/android/build-ffmpeg-android.sh') }}-${{ env.NDK_VERSION }}
+
+      - name: FFmpeg for Android
+        if: steps.ffmpeg.outputs.cache-hit != 'true'
+        env:
+          ANDROID_NDK_HOME: ${{ env.ANDROID_NDK }}
+        run: bash ppss55/core/scripts/android/build-ffmpeg-android.sh "$PWD/_Build/ffmpeg-android"
+
+      - name: Configure core
+        run: |
+          cmake -S ppss55/core -B _Build/android -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$ANDROID_NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI=arm64-v8a -DANDROID_PLATFORM=android-31 -DCMAKE_BUILD_TYPE=Release \
+            -DKYTY_GUEST_CPU_FEX=ON -DKYTY_BUILD_LAUNCHER=OFF \
+            -DFFMPEG_PREBUILT_DIR="$PWD/_Build/ffmpeg-android/install" \
+            -DKYTY_BUILD_ORIGIN=Fork -DKYTY_BUILD_REPOSITORY="$GITHUB_REPOSITORY" \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+
+      - name: Build core (libmain.so)
+        run: |
+          ccache --max-size=3G
+          ninja -C _Build/android kyty_emulator
+
+      - name: Stage native libraries
+        run: |
+          ST=ppss55/build-native
+          mkdir -p $ST/3rdparty/SDL3 $ST/3rdparty/libadrenotools/src/hook
+          "$ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-debug -o $ST/libmain.so _Build/android/libmain.so
+          cp _Build/android/3rdparty/SDL3/libSDL3.so $ST/3rdparty/SDL3/
+          cp _Build/android/3rdparty/libadrenotools/src/hook/*.so $ST/3rdparty/libadrenotools/src/hook/
+
+      - name: Unit tests and debug APK
+        working-directory: ppss55/android
+        run: |
+          echo "sdk.dir=$ANDROID_SDK_ROOT" > local.properties
+          ./gradlew --no-daemon testDebugUnitTest assembleDebug -PkytyNativeDir="$GITHUB_WORKSPACE/ppss55/build-native"
+          unzip -l app/build/outputs/apk/debug/app-debug.apk | grep -q 'lib/arm64-v8a/libmain.so'
+
+      - name: APK must not contain game or Sony files
+        run: |
+          if unzip -l ppss55/android/app/build/outputs/apk/debug/app-debug.apk | grep -Ei '\.(pkg|exfat|zar|pup)$|eboot\.bin|param\.(json|sfo)$'; then
+            echo "APK contains game/firmware files"; exit 1
+          fi
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ppss55-debug-apk
+          path: ppss55/android/app/build/outputs/apk/debug/app-debug.apk
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ppss55-controller-screenshots
+          path: ppss55/android/app/build/screenshots/
+          if-no-files-found: ignore

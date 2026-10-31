@@ -28,3 +28,18 @@ baserom*
 .DS_Store
 /android/.kotlin/
 /android/app/src/main/assets/syms/
+
+# PPSS55 (emulador experimental de PS5; ver ppss55/README.md)
+/ppss55/build-native/
+/ppss55/android/.gradle/
+/ppss55/android/.kotlin/
+/ppss55/android/build/
+/ppss55/android/app/build/
+/ppss55/android/app/.cxx/
+/ppss55/android/local.properties
+/ppss55/android/app/src/main/jniLibs/
+# Nunca versionar jogos, firmware, chaves ou dumps da Sony.
+*.pkg
+*.exfat
+*.zar
+eboot.bin

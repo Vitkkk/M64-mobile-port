@@ -13,6 +13,9 @@ MIPS do jogo para código nativo ARM64 **dentro do celular**, na hora de abrir.
 > (Vulkan) já compila e entra no APK, mas **ainda não foi testado num
 > celular** nem com a ROM real. Ainda não há som. Ver [Roadmap](#roadmap).
 
+> 📦 Este repositório também contém o **[PPSS55](ppss55/README.md)**, um port Android experimental de
+> emulador de PS5 baseado no núcleo KytyPS5-Android (projeto separado, GPL-2.0, em `ppss55/`).
+
 ## Por que isso é diferente de um emulador
 
 | | Emulador | Este port |

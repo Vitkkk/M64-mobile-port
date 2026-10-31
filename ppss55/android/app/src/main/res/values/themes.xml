@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- PPSS55: dark, minimal launcher. -->
+    <style name="Theme.KytyPS5" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:windowBackground">@color/ppss55_bg</item>
+        <item name="android:colorBackground">@color/ppss55_bg</item>
+        <item name="android:colorAccent">@color/ppss55_accent</item>
+        <item name="android:colorPrimary">@color/ppss55_surface</item>
+        <item name="android:colorPrimaryDark">@color/ppss55_bg</item>
+        <item name="android:textColorPrimary">@color/ppss55_text</item>
+        <item name="android:textColorSecondary">@color/ppss55_text_dim</item>
+        <item name="android:statusBarColor">@color/ppss55_bg</item>
+        <item name="android:navigationBarColor">@color/ppss55_bg</item>
+    </style>
+
+    <!-- Fullscreen, no action bar. The emulator draws edge to edge through SDL. -->
+    <style name="Theme.KytyPS5.Game" parent="@android:style/Theme.Material.NoActionBar.Fullscreen">
+        <item name="android:windowBackground">@android:color/black</item>
+        <item name="android:colorAccent">@color/ppss55_accent</item>
+    </style>
+</resources>
