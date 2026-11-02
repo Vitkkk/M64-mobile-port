@@ -1,0 +1,220 @@
+RELATORIO DE CONVERSAO - fnf_to_catrobat.py
+Mod de Friday Night Funkin' -> projeto nativo do Pocket Code (.catrobat, Catrobat 1.12)
+
+ESTADO DOS TESTES: o arquivo foi validado estruturalmente e por simulacao headless do
+runtime do Catroid (ver VALIDACAO). NAO foi testado no aplicativo Pocket Code nem em
+Android/emulador: este ambiente nao possui dispositivo, emulador nem KVM.
+
+==============================================================================
+FUNCIONALIDADES IMPLEMENTADAS
+==============================================================================
+Implementado com bricks nativos do Pocket Code (nenhum HTML/APK/engine externo):
+ * Menu inicial com fundo/titulo da week, selecao de musica (< >), JOGAR, rolagem
+   cima/baixo, offset de audio (-/+ 10 ms) e BOTPLAY; opcoes salvas no aparelho
+   (Write/ReadVariableOnDevice).
+ * Carregamento do chart: dados compactados em texto e decodificados com SUBTEXT
+   para listas (notaTempo/notaLane/notaProxima, longaTempo/...); reiniciar a mesma
+   musica nao decodifica de novo.
+ * Relogio da musica: posicao = TIMER*1000 + base - offset. No instante em que o
+   MP3 comeca (brick logo apos o PlaySoundBrick) um unico SetVariable faz a
+   posicao valer 0 (sem salto); antes disso, contagem de 5 batidas.
+ * Gameplay 4K: 4 areas de toque multitoque (tela dividida em 4 colunas);
+   "quando tocado" julga a nota, COLLIDES_WITH_FINGER detecta nota segurada.
+ * Janelas de acerto do Psych: Sick <= 45 ms (350), Good <= 90 (200),
+   Bad <= 135 (100), Shit <= 166 (50); miss apos 166 ms; ghost tapping sem
+   penalidade; combo, combo maximo, pontos, precisao (%), barra de vida 0..2
+   (+0,023 acerto, -0,0475 erro), GAME OVER com vida 0.
+ * Notas longas (sustain) em pecas de meio step, julgadas enquanto o dedo
+   segura; soltar cedo perde vida e zera o combo.
+ * Notas descendo (downscroll) ou subindo (upscroll), velocidade do chart
+   (0,45 x speed px/ms), strums nas posicoes do Psych + deslocamentos do aspect.lua.
+ * Notas e pecas renderizadas por pools de clones reutilizaveis (sem um script
+   por nota); 8 receptores com estados normal/pressionado/acerto.
+ * Personagens com quadros recortados dos spritesheets Sparrow (XML), offsets,
+   escala e flipX do Psych: idle e singLEFT/DOWN/UP/RIGHT, miss do jogador,
+   dancas esquerda/direita da GF por batida, animacao especial por evento.
+ * Oponente toca todas as suas notas no tempo, com animacao e brilho do receptor.
+ * Camera do Psych (alvos do oponente/jogador por mustHitSection, lerp suave),
+   cenario composto a partir do stage Lua, sobreposicao de bordas do mod.
+ * HUD: barra de vida com as cores dos personagens, icones com troca de estado e
+   pulso na batida, popups de avaliacao, numero de combo, texto de pontuacao,
+   contagem 3/READY?/SET/GO!, tela de resultados e de GAME OVER com
+   "TENTAR DE NOVO" e "MENU".
+ * Orientacao paisagem 1280x720 (STRETCH).
+
+==============================================================================
+ENGENHARIA REVERSA DO FORMATO
+==============================================================================
+Fontes consultadas (repositorio oficial Catrobat/Catroid, branch develop):
+ * io/XstreamSerializer.java: aliases (program, header, scenes/scene, objectList/
+   object, lookList/look, soundList/sound, scriptList/script type=..., brick
+   type=..., userVariable, userList), campos omitidos (WhenScript.action,
+   HideTextBrick.formulaList...), modo de referencias XPath relativas.
+ * io/CatroidFieldKeySorter.java + @XStreamFieldKeyOrder: ordem dos campos.
+ * io/XStreamBrickConverter, XStreamScriptConverter, XStreamUserVariableConverter
+   (userVariable serialization="custom"), XStreamConcurrentFormulaHashMapConverter
+   (<formulaList><formula category="...">), FormulaElement (additionalChildren,
+   leftChild, rightChild, type, value; BRACKET).
+ * Classes de cada brick usado (campos serializaveis e BrickField das formulas).
+ * Runtime: StageListener (ate 50 acts por quadro), libGDX SequenceAction (1 brick
+   por act), LoopUtil/LoopAction (atraso de 20 ms em loops com bricks visuais),
+   WaitUntilAction, SensorHandler.TIMER, SoundManager (prepare() sincrono, volume
+   global), Look.doTouchDown (alpha > 10), CollisionDetection.collidesWithFinger,
+   FormulaElement/FormulaElementOperations (NaN, strings, SUBTEXT 1-based, MOD),
+   SetVariableAction (conversao booleana), ProjectManager (rotinas de migracao).
+ * Projetos .catrobat reais: catroid/src/androidTest/assets (227 projetos; o mais
+   novo em linguagem 1.13). Todas as 4.539 referencias desses projetos resolvem
+   com o mesmo algoritmo usado no gerador; as assinaturas de elementos dos bricks
+   gerados foram comparadas com as desses projetos (ver VALIDACAO).
+Formato gerado: ZIP com code.xml, .nomedia, <cena>/images/*.png,
+<cena>/sounds/*.mp3 e automatic_screenshot.png; linguagem 1.12 (aceita pelas
+versoes atuais, que migram para 1.14 ao abrir; nenhuma rotina de migracao
+altera os bricks usados).
+
+==============================================================================
+MOD
+==============================================================================
+Origem: /root/.claude/uploads/b567f83f-8599-5966-9834-a577a8fc2e72/05aa0db4-baldintroduction.zip
+Engine detectada: Psych Engine (pasta de mod) (pack.json / custom_events / characters+stages+weeks em JSON)
+54 arquivos
+Dificuldade: basic
+Week bald.json: 'Welcome to my schoolhouse!' musicas=['introduction']
+
+==============================================================================
+CHART
+==============================================================================
+Introduction: 673 notas (341 jogador / 332 oponente), 874 pecas de notas longas, 67 secoes, BPM 112.0, velocidade 3.20, duracao 143.6 s, formato Psych/Legacy (secoes), arquivo data/introduction/introduction-basic.json
+
+==============================================================================
+PERSONAGENS
+==============================================================================
+bf (jogador): 60 quadros, tela 637x546 px, escala 0.91, flipX=False, anims=idle(4@24fps), singLEFT(7@24fps), singDOWN(7@24fps), singUP(7@24fps), singRIGHT(7@24fps), singLEFTmiss(7@12fps), singDOWNmiss(7@12fps), singUPmiss(7@12fps), singRIGHTmiss(7@12fps)
+baldi (oponente): 55 quadros, tela 426x524 px, escala 1.95, flipX=False, anims=idle(1@24fps), singLEFT(5@24fps), singDOWN(5@24fps), singUP(5@24fps), singRIGHT(5@24fps), wave(34@10fps)
+  animacoes especiais (usadas por eventos): wave
+gf (gf): 30 quadros, tela 279x193 px, escala 0.33, flipX=False, anims=danceLeft(15@24fps), danceRight(15@24fps)
+
+==============================================================================
+CENARIO
+==============================================================================
+stages/bg1.lua: 1 camada(s) convertida(s): bg(bg_1 x2.60)
+Cenario composto em 1950x954 px (mundo x0.65)
+
+==============================================================================
+CAMERA
+==============================================================================
+zoom 0.65; alvo oponente (26, 591), alvo jogador (978, 612), inicio (248, 332)
+
+==============================================================================
+AUDIO
+==============================================================================
+Introduction: songs/introduction/Inst.ogg + songs/introduction/Voices.ogg -> musica_1_introduction.mp3 (MP3 CBR 160 kbps, 44,1 kHz, 143.6 s, 2805 KB)
+
+==============================================================================
+INTERFACE
+==============================================================================
+Fonte do mod usada nos textos desenhados: fonts/COMIC.ttf
+Menu: fundo da week 'baldory' (images/menubackgrounds/menu_baldory.png)
+
+==============================================================================
+DESEMPENHO
+==============================================================================
+Pool de clones: 8 notas normais, 16 pecas de notas longas, 8 receptores (antecedencia 542 ms)
+
+==============================================================================
+PROJETO GERADO
+==============================================================================
+Arquivo: output/FNF_Port.catrobat (5.9 MB)
+Linguagem Catrobat 1.12, paisagem 1280x720, cena 'FNF'
+31 objetos, 146 scripts, 875 bricks, 56 variaveis globais, 18 listas globais, 262 imagens, 1 sons
+Objetos: Fundo, Cenario, GF, Oponente, Jogador, NotasLongas, Receptores, Notas, Avaliacao, BarraVida, IconeOponente, IconeJogador, Contagem, Bordas, Toque0, Toque1, Toque2, Toque3, MenuFundo, BotaoAnterior, BotaoProximo, BotaoJogar, BotaoRolagem, BotaoOffsetMenos, BotaoOffsetMais, BotaoBotplay, Painel, BotaoRepetir, BotaoMenu, Textos, Jogo
+Tipos usados: AddItemToUserListBrick x135, BroadcastBrick x9, BroadcastScript x101, ChangeVariableBrick x81, ClearUserListBrick x27, CloneBrick x3, DeleteThisCloneBrick x3, HideBrick x93, HideTextBrick x21, IfLogicBeginBrick x10, IfThenLogicBeginBrick x63, PlaceAtBrick x35, PlaySoundBrick x1, ReadVariableFromDeviceBrick x3, RepeatBrick x6, RepeatUntilBrick x26, ReplaceItemInUserListBrick x42, ResetTimerBrick x1, SetLookByIndexBrick x29, SetSizeToBrick x2, SetTransparencyBrick x2, SetVariableBrick x227, SetYBrick x2, ShowBrick x31, ShowTextColorSizeAlignmentBrick x11, StartScript x29, StopAllSoundsBrick x4, WaitBrick x2, WaitUntilBrick x2, WhenClonedScript x3, WhenScript x13, WriteVariableOnDeviceBrick x4
+
+==============================================================================
+SCRIPTS CONVERTIDOS
+==============================================================================
+deslocamento de strums aplicado: scripts/aspect.lua: lanes 0-3 x +87
+deslocamento de strums aplicado: scripts/aspect.lua: lanes 4-7 x -78
+deslocamento de strums aplicado: scripts/aspect.lua: lanes 4-7 y +0
+scripts/aspect.lua: sobreposicao de tela 'aspect' convertida em objeto
+evento 'Play Animation': 1 ocorrencia(s) convertida(s) em dados de evento
+
+==============================================================================
+SCRIPTS (INVENTARIO)
+==============================================================================
+custom_events/Cinematics.lua: evento personalizado - nao usado por nenhum chart convertido (nada a converter)
+custom_events/Flash Camera.lua: evento personalizado - nao usado por nenhum chart convertido (nada a converter)
+custom_events/Set Cam Zoom.lua: evento personalizado - nao usado por nenhum chart convertido (nada a converter)
+scripts/Cam.lua: camera suave -> convertida como lerp; deslocamento da camera por nota e zoom por batida -> NAO convertidos
+scripts/aspect.lua: deslocamento de strums -> convertido; sobreposicao de bordas -> convertida
+scripts/font.lua: troca de fonte do HUD -> parcial (imagens de texto usam a fonte do mod; textos dinamicos usam a fonte do Pocket Code)
+
+==============================================================================
+SCRIPTS / RECURSOS NAO CONVERTIDOS
+==============================================================================
+stage bg1: setLuaSpriteScrollFactor('entrance') refere sprite inexistente (sem efeito tambem no Psych)
+stages/bg1.lua: chamadas ignoradas: setProperty
+scripts/aspect.lua: sobreposicao 'vcrshit' e totalmente transparente - ignorada
+
+==============================================================================
+LIMITACOES
+==============================================================================
+ * O Pocket Code nao expoe a posicao de reproducao do audio; o relogio e o TIMER
+   sincronizado no inicio do MP3. Latencia de audio/Bluetooth deve ser
+   compensada com o OFFSET do menu.
+ * Voices e Inst sao misturadas num unico MP3 (o volume do Pocket Code e global,
+   entao nao da para silenciar so a voz quando o jogador erra, como no FNF).
+ * Loops do Pocket Code com bricks visuais esperam 20 ms por iteracao: as notas
+   sao reposicionadas a ~50 Hz.
+ * NOTE_assets, noteSplashes, sons de contagem/erro, bf-dead e fonte vcr do jogo
+   base NAO vem no mod: setas/receptores/notas longas/textos foram desenhados
+   pelo conversor; nao ha splash, som de erro nem animacao de morte.
+ * Lua/HScript arbitrario nao e convertido automaticamente; apenas os padroes
+   listados em SCRIPTS CONVERTIDOS. Zoom de camera por batida e deslocamento de
+   camera por nota (Cam.lua) nao foram implementados.
+ * Uma unica dificuldade por exportacao; personagens/stage da primeira musica.
+ * Animacoes longas sao subamostradas para economizar memoria de textura.
+ * O texto dinamico (pontos, combo, resultados) usa a fonte do Pocket Code.
+ * Mudancas de BPM: tempos das notas corretos, mas a grade de batidas das
+   animacoes usa o BPM inicial. Tipos de nota personalizados viram notas
+   normais (notas "hurt" sao descartadas).
+ * Leitor de charts V-Slice implementado, mas sem amostra para teste; Codename
+   Engine e outras engines sao apenas detectadas.
+
+==============================================================================
+VALIDACAO
+==============================================================================
+Projeto minimo FNF_Minimo.catrobat: problemas=nenhum, referencias=3, erros=nenhum
+Checagem semantica (escopos, assets, broadcasts): OK
+Referencias XStream resolvidas: 552, erros: nenhum
+Integridade ZIP: OK; 270 entradas
+Estrutura (releitura do .catrobat): ZIP: OK (270 entradas)
+Estrutura (releitura do .catrobat): XML bem formado; 552 referencias XStream resolvidas; erros: nenhum
+Estrutura (releitura do .catrobat): Tipos de brick: 28, de script: 4, desconhecidos: nenhum
+Estrutura (releitura do .catrobat): Imagens referenciadas carregadas: 262 (todas existem no ZIP)
+Estrutura (releitura do .catrobat): Estrutura de elementos: 27 assinaturas identicas a projetos reais, 10 conferidas pelo codigo-fonte, divergencias: nenhuma
+Simulacao 'botplay' (BOTPLAY ligado pelo botao do menu): carregamento 10.2 s a 12 acts/quadro; 146.2 s de jogo; estado final RESULTADOS; pontos 119350; erros 0; combo max 341; notas do jogador julgadas 341; notas do oponente tocadas 673; clones simultaneos 32; HUD: 'Pontos: 119350 | Erros: 0 | Precisao: 100%'
+Simulacao 'humano' (toques simulados com erro gaussiano de 35 ms e notas longas seguradas): carregamento 10.2 s a 12 acts/quadro; 146.2 s de jogo; estado final RESULTADOS; pontos 106950; erros 0; combo max 341; notas do jogador julgadas 341; notas do oponente tocadas 673; clones simultaneos 32; HUD: 'Pontos: 106950 | Erros: 0 | Precisao: 92.61%'
+Simulacao 'sem_toques' (nenhum toque: deve chegar ao GAME OVER e voltar ao menu): carregamento 10.2 s a 12 acts/quadro; 32.6 s de jogo; estado final GAME OVER; pontos 0; erros 15; combo max 0; notas do jogador julgadas 15; notas do oponente tocadas 100; clones simultaneos 32; HUD: 'Pontos: 0 | Erros: 15 | Precisao: 0%'; TENTAR DE NOVO -> partida reiniciada em 0.13 s (chart em cache), estado apos 3 s: 1.0; botao MENU -> estado 0.0, clones restantes 0
+Teste com o desserializador REAL do Pocket Code: converter/catroid_test/FnfPortDeserializationTest.java (XstreamSerializer.fromXML + identidade das referencias + ida e volta das formulas pelo InternFormulaParser). Preparado, mas NAO executado neste ambiente (a execucao do build Gradle do Catroid foi bloqueada); ver converter/README.md.
+Quadros renderizados a partir do estado simulado: output/preview_menu.png, output/preview_gameplay.png (BOTPLAY, 28.2 s de musica)
+
+==============================================================================
+COMO IMPORTAR NO POCKET CODE (Android)
+ 1. Copie output/FNF_Port.catrobat para o celular (ex.: pasta Downloads).
+ 2. Opcao A: abra o Pocket Code > "Projetos" > menu de tres pontos (canto
+    superior direito) > "Importar projeto" e escolha FNF_Port.catrobat.
+    Opcao B: toque no arquivo .catrobat no gerenciador de arquivos e escolha
+    abrir com o Pocket Code (o app registra a extensao .catrobat).
+ 3. O projeto aparece como "FNF Port". Toque nele e no botao de reproduzir
+    (triangulo). O projeto ja esta configurado em modo paisagem.
+ 4. No menu do jogo: < > escolhe a musica, JOGAR comeca. Toque nas 4 colunas da
+    tela (esquerda, baixo, cima, direita), segure nas notas longas. Se as notas
+    chegam ao receptor ANTES do som (comum com fone Bluetooth), aumente o
+    OFFSET; se chegam DEPOIS, diminua. BOTPLAY joga sozinho; ROLAGEM troca
+    cima/baixo.
+ 5. O botao Voltar do Android pausa (menu do Pocket Code: continuar/reiniciar).
+ 6. Na primeira partida o chart e decodificado (alguns segundos com a mensagem
+    "Carregando musica..."); "TENTAR DE NOVO" reaproveita os dados.
+
+Reconverter: python3 converter/fnf_to_catrobat.py <mod.zip|pasta> -o output/FNF_Port.catrobat
+Validar:     python3 converter/validate_catrobat.py output/FNF_Port.catrobat --full
