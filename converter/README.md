@@ -48,6 +48,9 @@ para todos os objetos; clones ganham shader próprio; laços sem bricks visuais 
 todo "act" do palco; `ShowText` recria a textura do texto a cada quadro. Por isso os
 quadros são recortados, as imagens grandes são minúsculas e ampliadas com `SetSize`,
 os looks só mudam quando necessário, não há clones e os laços de lógica rodam a ~50 Hz.
+O `RepeatUntilAction` reavalia a condição em todo act (até 50 por quadro), então os
+laços usam `Sempre` + `Se … parar este script`, e a posição da música é calculada uma
+vez por volta (`posMusica`). `--lite` gera uma versão sem personagens e cenário.
 
 ## Validação
 

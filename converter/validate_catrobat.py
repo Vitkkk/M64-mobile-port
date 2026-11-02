@@ -34,7 +34,7 @@ KNOWN_BRICKS = {
     "RepeatBrick", "RepeatUntilBrick", "ReplaceItemInUserListBrick", "ResetTimerBrick", "SetLookBrick",
     "SetLookByIndexBrick", "SetSizeToBrick", "SetTransparencyBrick", "SetVariableBrick", "SetXBrick",
     "SetYBrick", "ShowBrick", "ShowTextColorSizeAlignmentBrick", "StopAllSoundsBrick", "WaitBrick",
-    "WaitUntilBrick", "WriteVariableOnDeviceBrick", "SetVolumeToBrick", "StopScriptBrick"}
+    "WaitUntilBrick", "WriteVariableOnDeviceBrick", "SetVolumeToBrick", "StopScriptBrick", "ForeverBrick"}
 KNOWN_SCRIPTS = {"StartScript", "BroadcastScript", "WhenScript", "WhenClonedScript"}
 
 

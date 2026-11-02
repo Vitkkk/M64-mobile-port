@@ -41,6 +41,10 @@ class SimError(Exception):
     pass
 
 
+class StopThisScript(Exception):
+    pass
+
+
 # --------------------------------------------------------------------------
 # Leitura do code.xml
 # --------------------------------------------------------------------------
@@ -244,6 +248,9 @@ class Evaluator:
 
     def ev(self, n, inst):
         t = n.type
+        self.sim.cost["nos"] += 1
+        if t == "OPERATOR" and n.value in ("PLUS", "MINUS", "MULT", "DIVIDE") and n.left is not None:
+            self.sim.cost["bigdecimal"] += 1
         if t == "NUMBER":
             return float(n.value)
         if t == "STRING":
@@ -426,6 +433,7 @@ class Sim:
                 if typ == "StartScript":
                     self.start_thread(inst, i)
         self.device = {}
+        self.cost = {"nos": 0, "bigdecimal": 0, "bricks": 0}
 
     # --- dados ---
     def stat(self, k, n=1):
@@ -511,20 +519,28 @@ class Sim:
             yield from self.run_brick(inst, b)
 
     def loop(self, inst, b, cond):
+        # RepeatUntilAction.delegate reavalia a condicao em todo act (custo apenas)
+        per_act = b.formulas.get("REPEAT_UNTIL_CONDITION") if b.type == "RepeatUntilBrick" else None
         while True:
             if cond is not None and cond():
                 return
             t0 = self.time
             if b.body:
-                yield from self.run_seq(inst, b.body)
+                for _ in self.run_seq(inst, b.body):
+                    if per_act is not None:
+                        self.ev.ev(per_act, inst)
+                    yield
             else:
                 yield
             if b.has_delay:
                 while self.time - t0 < 0.02 - 1e-9:
+                    if per_act is not None:
+                        self.ev.ev(per_act, inst)
                     yield
 
     def run_brick(self, inst, b):
         t = b.type
+        self.cost["bricks"] += 1
         sim = self
         if t == "SetVariableBrick":
             v = self.f(inst, b, "VARIABLE")
@@ -655,6 +671,10 @@ class Sim:
             self.sounds_played.append((round(self.time, 3), b.sound))
         elif t in ("StopAllSoundsBrick", "NoteBrick", "SetVolumeToBrick", "ComeToFrontBrick"):
             pass
+        elif t == "StopScriptBrick":
+            if str(b.spinner) == "0":
+                raise StopThisScript()
+            raise SimError("StopScriptBrick %s nao simulado" % b.spinner)
         elif t == "ResetTimerBrick":
             self.timer_ref = self.time
         elif t == "ShowTextColorSizeAlignmentBrick":
@@ -687,7 +707,7 @@ class Sim:
                         continue
                     try:
                         next(th)
-                    except StopIteration:
+                    except (StopIteration, StopThisScript):
                         if inst.threads.get(idx) is th:
                             del inst.threads[idx]
                     if not inst.alive:

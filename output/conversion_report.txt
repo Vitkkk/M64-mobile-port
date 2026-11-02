@@ -41,6 +41,12 @@ Implementado com bricks nativos do Pocket Code (nenhum HTML/APK/engine externo):
      clone a cada quadro);
    - lacos de julgamento/maestro/oponente a ~50 Hz (20 ms do LoopUtil) em vez de
      girar em todo "act" do palco;
+   - nenhum "repetir ate" com condicao cara: o RepeatUntilAction reavalia a
+     condicao em TODO act do palco (ate 50 por quadro), ate durante a espera;
+     os lacos usam "sempre" + "se ... parar este script" (1 avaliacao por volta);
+   - posicao da musica calculada 1x por volta (variavel posMusica) e notas com
+     y = baseY + pos*velocidade, reduzindo a aritmetica BigDecimal do Catroid;
+   - personagens, cenario, icones e HUD atualizados a ~30 Hz ou menos;
    - texturas dos personagens pre-carregadas durante "Carregando...".
  * Personagens com quadros recortados dos spritesheets Sparrow (XML), offsets,
    escala e flipX do Psych: idle e singLEFT/DOWN/UP/RIGHT, miss do jogador,
@@ -138,9 +144,9 @@ PROJETO GERADO
 ==============================================================================
 Arquivo: output/FNF_Port.catrobat (7.0 MB)
 Linguagem Catrobat 1.12, paisagem 1280x720, cena 'FNF'
-65 objetos, 280 scripts, 1738 bricks, 56 variaveis globais, 18 listas globais, 472 imagens, 1 sons
+65 objetos, 280 scripts, 2033 bricks, 58 variaveis globais, 19 listas globais, 472 imagens, 1 sons
 Objetos: Fundo, Cenario, GF, Oponente, Jogador, Longa01, Longa02, Longa03, Longa04, Longa05, Longa06, Longa07, Longa08, Longa09, Longa10, Longa11, Longa12, Longa13, Longa14, Longa15, Longa16, Longa17, Longa18, Receptor1, Receptor2, Receptor3, Receptor4, Receptor5, Receptor6, Receptor7, Receptor8, Nota01, Nota02, Nota03, Nota04, Nota05, Nota06, Nota07, Nota08, Nota09, Nota10, Avaliacao, BarraVida, IconeOponente, IconeJogador, Contagem, Bordas, Toque0, Toque1, Toque2, Toque3, MenuFundo, BotaoAnterior, BotaoProximo, BotaoJogar, BotaoRolagem, BotaoOffsetMenos, BotaoOffsetMais, BotaoBotplay, Painel, PainelTitulo, BotaoRepetir, BotaoMenu, Textos, Jogo
-Tipos usados: AddItemToUserListBrick x339, BroadcastBrick x9, BroadcastScript x203, ChangeVariableBrick x107, ClearUserListBrick x33, HideBrick x277, HideTextBrick x21, IfLogicBeginBrick x10, IfThenLogicBeginBrick x110, PlaceAtBrick x71, PlaySoundBrick x1, ReadVariableFromDeviceBrick x3, RepeatBrick x6, RepeatUntilBrick x81, ReplaceItemInUserListBrick x42, ResetTimerBrick x1, SetLookByIndexBrick x82, SetSizeToBrick x14, SetTransparencyBrick x4, SetVariableBrick x384, SetYBrick x28, ShowBrick x66, ShowTextColorSizeAlignmentBrick x11, StartScript x64, StopAllSoundsBrick x4, WaitBrick x2, WaitUntilBrick x28, WhenScript x13, WriteVariableOnDeviceBrick x4
+Tipos usados: AddItemToUserListBrick x347, BroadcastBrick x9, BroadcastScript x203, ChangeVariableBrick x107, ClearUserListBrick x34, ForeverBrick x53, HideBrick x305, HideTextBrick x21, IfLogicBeginBrick x10, IfThenLogicBeginBrick x191, PlaceAtBrick x71, PlaySoundBrick x1, ReadVariableFromDeviceBrick x3, RepeatBrick x6, RepeatUntilBrick x28, ReplaceItemInUserListBrick x42, ResetTimerBrick x1, SetLookByIndexBrick x82, SetSizeToBrick x14, SetTransparencyBrick x4, SetVariableBrick x471, SetYBrick x28, ShowBrick x66, ShowTextColorSizeAlignmentBrick x11, StartScript x64, StopAllSoundsBrick x4, StopScriptBrick x81, WaitBrick x11, WaitUntilBrick x28, WhenScript x13, WriteVariableOnDeviceBrick x4
 
 ==============================================================================
 SCRIPTS CONVERTIDOS
@@ -201,16 +207,16 @@ VALIDACAO
 ==============================================================================
 Projeto minimo FNF_Minimo.catrobat: problemas=nenhum, referencias=3, erros=nenhum
 Checagem semantica (escopos, assets, broadcasts): OK
-Referencias XStream resolvidas: 945, erros: nenhum
+Referencias XStream resolvidas: 1041, erros: nenhum
 Integridade ZIP: OK; 480 entradas
 Estrutura (releitura do .catrobat): ZIP: OK (480 entradas)
-Estrutura (releitura do .catrobat): XML bem formado; 945 referencias XStream resolvidas; erros: nenhum
-Estrutura (releitura do .catrobat): Tipos de brick: 26, de script: 3, desconhecidos: nenhum
+Estrutura (releitura do .catrobat): XML bem formado; 1041 referencias XStream resolvidas; erros: nenhum
+Estrutura (releitura do .catrobat): Tipos de brick: 28, de script: 3, desconhecidos: nenhum
 Estrutura (releitura do .catrobat): Imagens referenciadas carregadas: 472 (todas existem no ZIP)
-Estrutura (releitura do .catrobat): Estrutura de elementos: 24 assinaturas identicas a projetos reais, 10 conferidas pelo codigo-fonte, divergencias: nenhuma
+Estrutura (releitura do .catrobat): Estrutura de elementos: 26 assinaturas identicas a projetos reais, 10 conferidas pelo codigo-fonte, divergencias: nenhuma
 Simulacao 'botplay' (BOTPLAY ligado pelo botao do menu): carregamento 10.2 s a 12 acts/quadro; 146.3 s de jogo; estado final RESULTADOS; pontos 119350; erros 0; combo max 341; notas do jogador julgadas 341; notas do oponente tocadas 673; clones criados 0; HUD: 'Pontos: 119350 | Erros: 0 | Precisao: 100%'
-Simulacao 'humano' (toques simulados com erro gaussiano de 35 ms e notas longas seguradas): carregamento 10.2 s a 12 acts/quadro; 146.3 s de jogo; estado final RESULTADOS; pontos 108050; erros 0; combo max 341; notas do jogador julgadas 341; notas do oponente tocadas 673; clones criados 0; HUD: 'Pontos: 108050 | Erros: 0 | Precisao: 93.23%'
-Simulacao 'sem_toques' (nenhum toque: deve chegar ao GAME OVER e voltar ao menu): carregamento 10.2 s a 12 acts/quadro; 32.6 s de jogo; estado final GAME OVER; pontos 0; erros 15; combo max 0; notas do jogador julgadas 15; notas do oponente tocadas 100; clones criados 0; HUD: 'Pontos: 0 | Erros: 14 | Precisao: 0%'; TENTAR DE NOVO -> partida reiniciada em 0.13 s (chart em cache), estado apos 3 s: 1.0; botao MENU -> estado 0.0, clones restantes 0
+Simulacao 'humano' (toques simulados com erro gaussiano de 35 ms e notas longas seguradas): carregamento 10.2 s a 12 acts/quadro; 146.3 s de jogo; estado final RESULTADOS; pontos 107700; erros 0; combo max 341; notas do jogador julgadas 341; notas do oponente tocadas 673; clones criados 0; HUD: 'Pontos: 107700 | Erros: 0 | Precisao: 93.05%'
+Simulacao 'sem_toques' (nenhum toque: deve chegar ao GAME OVER e voltar ao menu): carregamento 10.2 s a 12 acts/quadro; 32.6 s de jogo; estado final GAME OVER; pontos 0; erros 15; combo max 0; notas do jogador julgadas 15; notas do oponente tocadas 100; clones criados 0; HUD: 'Pontos: 0 | Erros: 14 | Precisao: 0%'; TENTAR DE NOVO -> partida reiniciada em 0.15 s (chart em cache), estado apos 3 s: 1.0; botao MENU -> estado 0.0, clones restantes 0
 Teste com o desserializador REAL do Pocket Code: converter/catroid_test/FnfPortDeserializationTest.java (XstreamSerializer.fromXML + identidade das referencias + ida e volta das formulas pelo InternFormulaParser). Preparado, mas NAO executado neste ambiente (a execucao do build Gradle do Catroid foi bloqueada); ver converter/README.md.
 Quadros renderizados a partir do estado simulado: output/preview_menu.png, output/preview_gameplay.png (BOTPLAY, 28.2 s de musica)
 

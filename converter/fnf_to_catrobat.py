@@ -1000,11 +1000,27 @@ def build_project(mod, songs, week_info, opts):
 
     V = var
 
-    def POS():
+    posV, velSign, laneXL = G("posMusica"), G("velocidadeSinal"), GL("laneX")
+
+    def POS_EXACT():
         return sensor("TIMER") * 1000 + V(songBase) - V(offsetMs)
+
+    def POS():
+        # posicao da musica calculada 1x por volta do maestro (~50 Hz): evita que
+        # cada formula refaca TIMER*1000+base-offset (aritmetica BigDecimal no Catroid)
+        return V(posV)
 
     def running():
         return V(gameState).eq(1)
+
+    def loop_until(cond, body, after=(), every=None):
+        """'Sempre' + 'se cond: parar este script'. O RepeatUntil do Catroid
+        reavalia a condicao em TODO act do palco (ate 50 por quadro), mesmo
+        durante a espera de 20 ms; aqui ela e avaliada uma vez por volta."""
+        b = [if_(cond, list(after) + [stop_script(0)])] + list(body)
+        if every:
+            b.append(wait(every))
+        return forever(b)
 
     def lane_x_formula(l):
         dx = lane_x[4] - (lane_x[0] + 4 * 112)
@@ -1038,12 +1054,13 @@ def build_project(mod, songs, week_info, opts):
             fx, fy = fx + dx, fy + dy
         return place_at(fx, fy)
 
-    cen = proj.sprite("Cenario")
+    cen = proj.sprite("Cenario") if not opts.lite else Sprite("_nao_usado")
     cen.look("cenario", "cenario.png")
-    add_img("cenario.png", back)
+    if not opts.lite:
+        add_img("cenario.png", back)
     hide_on(cen, "menu", "load")
     cen.add(when_received("start", set_size(bg_size), world_place(*bg_center), show(),
-                          repeat_until(~running(), [world_place(*bg_center)])))
+                          loop_until(~running(), [world_place(*bg_center)], every=0.033)))
 
     # ======================================================================
     # Personagens
@@ -1108,15 +1125,18 @@ def build_project(mod, songs, week_info, opts):
         sp.add(when_received("start", *head, set_size(ch.size_pct), set_var(animT, 0), set_look_index(f0),
                              set_var(shown, f0),
                              world_place(cx, cy, sf, item(f0, oX), item(f0, oY)), show(),
-                             repeat_until(~running(), body)))
+                             loop_until(~running(), body, every=0.033)))
         return sp
 
-    if gf:
-        character_sprite(gf, "GF", None, None, None, 0.95, False)
-    if dad.ok:
-        character_sprite(dad, "Oponente", dadAnim, dadSerial, dadSingT, 1.0, False)
-    if bf.ok:
-        character_sprite(bf, "Jogador", bfAnim, bfSerial, bfSingT, 1.0, True)
+    if opts.lite:
+        R.add("DESEMPENHO", "Modo --lite: sem personagens e sem cenario (diagnostico/aparelhos fracos)")
+    else:
+        if gf:
+            character_sprite(gf, "GF", None, None, None, 0.95, False)
+        if dad.ok:
+            character_sprite(dad, "Oponente", dadAnim, dadSerial, dadSingT, 1.0, False)
+        if bf.ok:
+            character_sprite(bf, "Jogador", bfAnim, bfSerial, bfSingT, 1.0, True)
 
     # ======================================================================
     # Notas: pools de clones reutilizaveis
@@ -1145,21 +1165,27 @@ def build_project(mod, songs, week_info, opts):
                 sp.look(ln, fname)
                 add_img(fname, im)
             k, myLane, li = sp.local_var("indice"), sp.local_var("minhaLane"), sp.local_var("lookAtual")
+            baseY, fim = sp.local_var("baseY"), sp.local_var("fim")
             sp.add(when_start(hide()), when_received("menu", hide()), when_received("load", hide()))
             sp.add(when_received("start",
                 hide(), set_var(k, j), set_var(li, 0),
-                repeat_until((V(k) > V(count_v)) | ~running(), [
+                loop_until((V(k) > V(count_v)) | ~running(), [
                     wait_until((item(V(k), times_l) - POS() < lead) | ~running()),
+                    if_(~running(), [hide(), stop_script(0)]),
                     set_var(myLane, item(V(k), lanes_l)),
                     if_(look_formula(V(k), V(myLane)).ne(V(li)), [
                         set_var(li, look_formula(V(k), V(myLane))), set_look_index(V(li))]),
-                    place_at(lane_x_formula(V(myLane)), note_y(item(V(k), times_l))),
+                    # y = baseY + pos*velocidadeSinal (2 operacoes por atualizacao)
+                    set_var(baseY, V(strumY) - V(velSign) * item(V(k), times_l)),
+                    place_at(item(V(myLane) + 1, laneXL), V(baseY) + POS() * V(velSign)),
                     show(),
-                    repeat_until(resolved(V(k), V(myLane)) | ~running(), [set_y(note_y(item(V(k), times_l)))]),
+                    set_var(fim, 0),
+                    repeat_until(V(fim).eq(1), [
+                        set_y(V(baseY) + POS() * V(velSign)),
+                        set_var(fim, resolved(V(k), V(myLane)) | ~running())]),
                     hide(),
                     change_var(k, P),
-                ]),
-                hide()))
+                ], after=[hide()])))
 
     hold_looks = [("longa_%s" % DIR_NAMES[d].lower(), imgs["hold_%d" % d]) for d in range(4)] + \
                  [("ponta_%s" % DIR_NAMES[d].lower(), imgs["holdend_%d" % d]) for d in range(4)] + \
@@ -1183,10 +1209,10 @@ def build_project(mod, songs, week_info, opts):
         rec.add(when_start(hide()), when_received("menu", hide()), when_received("load", hide()))
         rec.add(when_received("start",
             place_at(round(lane_x[lane], 2), V(strumY)), set_look_index(1), set_var(shown_, 0), show(),
-            repeat_until(~running(), [
+            loop_until(~running(), [
                 set_var(st, state_f),
-                if_(V(st).ne(V(shown_)), [set_look_index(V(st) + 1), set_var(shown_, V(st))])]),
-            set_look_index(1)))
+                if_(V(st).ne(V(shown_)), [set_look_index(V(st) + 1), set_var(shown_, V(st))])],
+                after=[set_look_index(1)])))
 
     tap_looks = [("nota_%s" % DIR_NAMES[d].lower(), imgs["note_%d" % d]) for d in range(4)]
     pool_sprites("Nota", tap_looks, P_tap, tT, tL, nTaps, lambda k, l: fmod(l, 4) + 1,
@@ -1203,12 +1229,12 @@ def build_project(mod, songs, week_info, opts):
     hide_on(rat, "menu", "load")
     since = POS() - V(ratingT)
     rShown = rat.local_var("avaliacaoMostrada")
-    rat.add(when_received("start", set_var(rShown, 0), repeat_until(~running(), [
+    rat.add(when_received("start", set_var(rShown, 0), loop_until(~running(), [
         if_(since < 700, [if_(V(ratingIdx).ne(V(rShown)), [set_look_index(V(ratingIdx)),
                                                            set_var(rShown, V(ratingIdx))]),
                           place_at(-110, iff(V(downscroll).eq(1), -40, 40) + since * 0.04),
                           set_transparency(fmax(0, (since - 400) / 3)), show()],
-            [hide()])]), hide()))
+            [hide()])], after=[hide()], every=0.033)))
 
     dad_color = dad.color if dad.ok else (255, 0, 0)
     bf_color = bf.color if bf.ok else (0, 255, 0)
@@ -1221,9 +1247,9 @@ def build_project(mod, songs, week_info, opts):
     barY = iff(V(downscroll).eq(1), bar_y_down, bar_y_up)
     hide_on(hb, "menu", "load")
     hbv, hbs = hb.local_var("lookVida"), hb.local_var("lookVidaMostrado")
-    hb.add(when_received("start", place_at(0, barY), set_var(hbs, 0), show(), repeat_until(~running(), [
+    hb.add(when_received("start", place_at(0, barY), set_var(hbs, 0), show(), loop_until(~running(), [
         set_var(hbv, fround(fmin(fmax(V(health), 0), 2) * 25) + 1),
-        if_(V(hbv).ne(V(hbs)), [set_look_index(V(hbv)), set_var(hbs, V(hbv))])])))
+        if_(V(hbv).ne(V(hbs)), [set_look_index(V(hbv)), set_var(hbs, V(hbv))])], every=0.05)))
 
     split_x = (SCREEN_W / 2 - 300.5 + 4) + 593 * (1 - V(health) / 2) - SCREEN_W / 2
     bump = 100 + 20 * iff(POS() > 0, fmax(0, 1 - fmod(POS(), V(crochet)) / (V(crochet) * 0.4)), 0)
@@ -1239,20 +1265,21 @@ def build_project(mod, songs, week_info, opts):
             ic.look("%s %d" % (icon, i + 1), fname)
         hide_on(ic, "menu", "load")
         iv, isv = ic.local_var("lookIcone"), ic.local_var("lookIconeMostrado")
-        ic.add(when_received("start", set_look_index(1), set_var(isv, 1), show(), repeat_until(~running(), [
+        ic.add(when_received("start", set_look_index(1), set_var(isv, 1), show(), loop_until(~running(), [
             place_at(split_x + offset, barY + 5), set_var(iv, iff(losing, 2, 1)),
-            if_(V(iv).ne(V(isv)), [set_look_index(V(iv)), set_var(isv, V(iv))]), set_size(bump)])))
+            if_(V(iv).ne(V(isv)), [set_look_index(V(iv)), set_var(isv, V(iv))]), set_size(bump)],
+            every=0.033)))
 
     cd = proj.sprite("Contagem")
     for i, txt in enumerate(["3", "READY?", "SET", "GO!"]):
         cd.look(txt, "contagem_%d.png" % (i + 1))
         add_img("contagem_%d.png" % (i + 1), ui.text_image(txt, 110, fill=(255, 255, 255), stroke_w=8))
     hide_on(cd, "menu", "load")
-    cd.add(when_received("start", place_at(0, 30), repeat_until(~running() | (POS() > 50), [
+    cd.add(when_received("start", place_at(0, 30), loop_until(~running() | (POS() > 50), [
         if_((POS() >= V(crochet) * -4) & (POS() < 0), [
             set_look_index(floor(POS() / V(crochet)) + 5),
-            set_transparency(fmod(POS() + V(crochet) * 8, V(crochet)) / V(crochet) * 100), show()], [hide()])]),
-        hide()))
+            set_transparency(fmod(POS() + V(crochet) * 8, V(crochet)) / V(crochet) * 100), show()], [hide()])],
+        after=[hide()], every=0.05)))
 
     has_flash = any(e[1] == "Flash Camera" for s in songs for e in s.events)
     if has_flash:
@@ -1260,9 +1287,10 @@ def build_project(mod, songs, week_info, opts):
         fl.look("branco", "flash.png")
         add_img("flash.png", Image.new("RGBA", (SCREEN_W, SCREEN_H), (255, 255, 255, 255)))
         hide_on(fl, "menu", "load")
-        fl.add(when_received("start", place_at(0, 0), repeat_until(~running(), [
+        fl.add(when_received("start", place_at(0, 0), loop_until(~running(), [
             if_(POS() - V(flashT) < V(flashDur), [
-                set_transparency((POS() - V(flashT)) / V(flashDur) * 100), show()], [hide()])]), hide()))
+                set_transparency((POS() - V(flashT)) / V(flashDur) * 100), show()], [hide()])],
+            after=[hide()], every=0.033)))
 
     aspect = None
     for f_ in mod.files:
@@ -1335,7 +1363,7 @@ def build_project(mod, songs, week_info, opts):
             set_var(hl, 0), show(),
             # o SetLook dentro do laco faz o Catroid esperar 20 ms por volta (LoopUtil):
             # o julgamento roda a ~50 Hz em vez de girar em todo "act" do palco
-            repeat_until(~running(), [
+            loop_until(~running(), [
                 set_var(hh, iff(V(botplay).eq(1), bot_hold, sensor("COLLIDES_WITH_FINGER"))),
                 replace_item(held, L + 1, V(hh)),
                 if_(V(hh).ne(V(hl)), [set_look_index(V(hh) + 1), set_var(hl, V(hh))]),
@@ -1356,10 +1384,9 @@ def build_project(mod, songs, week_info, opts):
                              [replace_item(ptrH, L + 1, item(V(k2), hN)),
                               change_var(health, -0.02375), set_var(combo, 0)])]),
                 ]),
-            ]),
-            replace_item(held, L + 1, 0)))
+            ], after=[replace_item(held, L + 1, 0)])))
         hbx.add(when_tapped(if_(running() & V(botplay).eq(0), [
-            set_var(hp, POS()),
+            set_var(hp, POS_EXACT()),
             set_var(hx, item(L + 1, ptrT)),
             set_var(hd, fabs(item(V(hx), tT) - V(hp))),
             if_((V(hx) <= V(nTaps)) & (V(hd) <= 166), [
@@ -1478,12 +1505,11 @@ def build_project(mod, songs, week_info, opts):
     tx.add(when_received("start", hide_text(loadTxt),
                          show_text(scoreTxt, 0, iff(V(downscroll).eq(1), 240, -322), 55, "#FFFFFF"),
                          show_text(comboTxt, -110, iff(V(downscroll).eq(1), -110, -30), 80, "#FFFFFF"),
-                         repeat_until(~running(), [
+                         loop_until(~running(), [
                              set_var(scoreTxt, join("Pontos: ", V(score), " | Erros: ", V(misses),
                                                     " | Precisao: ", acc, "%")),
                              set_var(comboTxt, iff((V(combo) > 1) & (POS() - V(ratingT) < 700),
-                                                   join(V(combo)), text(""))),
-                             wait(0.1)])))
+                                                   join(V(combo)), text("")))], every=0.2)))
     for msg in ("gameover", "results"):
         tx.add(when_received(msg, hide_text(comboTxt), hide_text(scoreTxt),
                              set_var(res1, join("Pontos: ", V(score))),
@@ -1516,7 +1542,8 @@ def build_project(mod, songs, week_info, opts):
 
     load = [set_var(gameState, 4), change_var(runId, 1), stop_all_sounds(),
             set_var(loadTxt, "Carregando musica..."),
-            *[clear_list(l) for l in (eT, eK, eA, fT, fH, ptrT, ptrH, held, strumUntil)]]
+            *[clear_list(l) for l in (eT, eK, eA, fT, fH, ptrT, ptrH, held, strumUntil, laneXL)],
+            *[add_item(laneXL, round(x_, 2)) for x_ in lane_x]]
     ev_supported = {}
     for i, s in enumerate(songs, 1):
         cdat = chart_data[s.id]
@@ -1598,7 +1625,9 @@ def build_project(mod, songs, week_info, opts):
         set_var(camX, round(gfT[0] - SCREEN_W / 2, 2)), set_var(camY, round(gfT[1] - SCREEN_H / 2, 2)),
         set_var(camTX, V(camX)), set_var(camTY, V(camY)),
         set_var(songStarted, 0), set_var(songBase, V(crochet) * -5), set_var(scoreTxt, ""),
-        set_var(comboTxt, ""), reset_timer(), set_var(loadTxt, ""), set_var(gameState, 1),
+        set_var(velSign, V(scrollSign) * V(noteSpeed)),
+        set_var(comboTxt, ""), reset_timer(), set_var(posV, POS_EXACT()), set_var(loadTxt, ""),
+        set_var(gameState, 1),
         broadcast("start"),
     ]
     jg.add(when_received("load", *load))
@@ -1606,7 +1635,8 @@ def build_project(mod, songs, week_info, opts):
     play_chain = [if_(V(songIdx).eq(i), [play_sound(sounds[s.id])]) for i, s in enumerate(songs, 1)]
     cam_bf = (round(bfT[0] - SCREEN_W / 2, 2), round(bfT[1] - SCREEN_H / 2, 2))
     cam_dad = (round(dadT[0] - SCREEN_W / 2, 2), round(dadT[1] - SCREEN_H / 2, 2))
-    jg.add(when_received("start", repeat_until(~running(), [
+    jg.add(when_received("start", loop_until(~running(), [
+        set_var(posV, POS_EXACT()),
         if_(V(songStarted).eq(0) & (sensor("TIMER") * 1000 + V(songBase) >= 0),
             # sincronizacao atomica: um unico brick faz o relogio valer 0 no instante do PlaySound
             play_chain + [set_var(songBase, sensor("TIMER") * -1000), set_var(songStarted, 1)]),
@@ -1629,8 +1659,8 @@ def build_project(mod, songs, week_info, opts):
         # por volta em vez de rodar em todo "act" do palco
         set_transparency(100),
     ])))
-    # IA do oponente: toca cada nota no tempo exato
-    jg.add(when_received("start", repeat_until(~running(), [
+    # IA do oponente: toca cada nota no tempo
+    jg.add(when_received("start", loop_until(~running(), [
         if_((V(oppT) <= V(nTaps)) & (POS() >= item(V(oppT), tT)), [
             replace_item(strumUntil, item(V(oppT), tL) + 1, item(V(oppT), tT) + 150),
             set_var(dadAnim, item(V(oppT), tL) + 2), change_var(dadSerial, 1), set_var(dadSingT, POS()),
@@ -1641,10 +1671,9 @@ def build_project(mod, songs, week_info, opts):
         set_transparency(100),
     ])))
     # camera suave (lerp) entre oponente e jogador
-    jg.add(when_received("start", repeat_until(~running(), [
-        change_var(camX, (V(camTX) - V(camX)) * 0.05),
-        change_var(camY, (V(camTY) - V(camY)) * 0.05),
-        wait(0.0167)])))
+    jg.add(when_received("start", loop_until(~running(), [
+        change_var(camX, (V(camTX) - V(camX)) * 0.1),
+        change_var(camY, (V(camTY) - V(camY)) * 0.1)], every=0.033)))
 
     return dict(proj=proj, ui=ui, zoom=zoom, bf=bf, dad=dad, gf=gf, chart_data=chart_data,
                 sounds=sounds, title=title, P_tap=P_tap, P_hold=P_hold, menu=menu, lane_x=lane_x,
@@ -1771,6 +1800,7 @@ def main(argv=None):
                     help="resolucao das texturas dos personagens (1.0 = nitidez maxima, mais memoria)")
     ap.add_argument("--minimal", action="store_true", help="gera tambem o projeto minimo de validacao")
     ap.add_argument("--no-simulate", action="store_true", help="pula a simulacao headless do gameplay")
+    ap.add_argument("--lite", action="store_true", help="sem personagens e cenario (aparelhos fracos)")
     opts = ap.parse_args(argv)
 
     out_dir = os.path.dirname(os.path.abspath(opts.output))
@@ -1967,6 +1997,12 @@ Implementado com bricks nativos do Pocket Code (nenhum HTML/APK/engine externo):
      clone a cada quadro);
    - lacos de julgamento/maestro/oponente a ~50 Hz (20 ms do LoopUtil) em vez de
      girar em todo "act" do palco;
+   - nenhum "repetir ate" com condicao cara: o RepeatUntilAction reavalia a
+     condicao em TODO act do palco (ate 50 por quadro), ate durante a espera;
+     os lacos usam "sempre" + "se ... parar este script" (1 avaliacao por volta);
+   - posicao da musica calculada 1x por volta (variavel posMusica) e notas com
+     y = baseY + pos*velocidade, reduzindo a aritmetica BigDecimal do Catroid;
+   - personagens, cenario, icones e HUD atualizados a ~30 Hz ou menos;
    - texturas dos personagens pre-carregadas durante "Carregando...".
  * Personagens com quadros recortados dos spritesheets Sparrow (XML), offsets,
    escala e flipX do Psych: idle e singLEFT/DOWN/UP/RIGHT, miss do jogador,
