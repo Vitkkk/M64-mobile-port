@@ -28,8 +28,20 @@ Implementado com bricks nativos do Pocket Code (nenhum HTML/APK/engine externo):
    segura; soltar cedo perde vida e zera o combo.
  * Notas descendo (downscroll) ou subindo (upscroll), velocidade do chart
    (0,45 x speed px/ms), strums nas posicoes do Psych + deslocamentos do aspect.lua.
- * Notas e pecas renderizadas por pools de clones reutilizaveis (sem um script
-   por nota); 8 receptores com estados normal/pressionado/acerto.
+ * Notas e pecas renderizadas por pools de objetos fixos reutilizaveis (sem um
+   script por nota e sem clones); 8 receptores com estados normal/pressionado/acerto.
+ * Otimizacoes para celular (custos medidos no codigo do Catroid):
+   - cada quadro de personagem recortado ao seu conteudo; pixel art exportada na
+     escala nativa e ampliada com SetSize (texturas do Catroid usam filtro
+     Nearest); fundos, bordas, areas de toque e paineis sao imagens minusculas
+     ampliadas; memoria estimada caiu de 355 MB para ~65 MB;
+   - SetLook so quando o quadro/estado muda (cada SetLook dispara um evento para
+     todos os objetos do projeto);
+   - sem clones (o Catroid cria um shader por clone e faz 2 flushes de GPU por
+     clone a cada quadro);
+   - lacos de julgamento/maestro/oponente a ~50 Hz (20 ms do LoopUtil) em vez de
+     girar em todo "act" do palco;
+   - texturas dos personagens pre-carregadas durante "Carregando...".
  * Personagens com quadros recortados dos spritesheets Sparrow (XML), offsets,
    escala e flipX do Psych: idle e singLEFT/DOWN/UP/RIGHT, miss do jogador,
    dancas esquerda/direita da GF por batida, animacao especial por evento.
@@ -88,16 +100,16 @@ Introduction: 673 notas (341 jogador / 332 oponente), 874 pecas de notas longas,
 ==============================================================================
 PERSONAGENS
 ==============================================================================
-bf (jogador): 60 quadros, tela 637x546 px, escala 0.91, flipX=False, anims=idle(4@24fps), singLEFT(7@24fps), singDOWN(7@24fps), singUP(7@24fps), singRIGHT(7@24fps), singLEFTmiss(7@12fps), singDOWNmiss(7@12fps), singUPmiss(7@12fps), singRIGHTmiss(7@12fps)
-baldi (oponente): 55 quadros, tela 426x524 px, escala 1.95, flipX=False, anims=idle(1@24fps), singLEFT(5@24fps), singDOWN(5@24fps), singUP(5@24fps), singRIGHT(5@24fps), wave(34@10fps)
+bf (jogador): 48 quadros recortados (16.2 MB de imagem na memoria do Pocket Code), escala final 0.91 (textura 0.73 + SetSize 125%), flipX=False, anims=idle(4@24fps), singLEFT(7@24fps), singDOWN(7@24fps), singUP(7@24fps), singRIGHT(7@24fps), singLEFTmiss(4@6fps), singDOWNmiss(4@6fps), singUPmiss(4@6fps), singRIGHTmiss(4@6fps)
+baldi (oponente): 38 quadros recortados (7.5 MB de imagem na memoria do Pocket Code), escala final 1.95 (textura 1.00 + SetSize 195%), flipX=False, anims=idle(1@24fps), singLEFT(5@24fps), singDOWN(5@24fps), singUP(5@24fps), singRIGHT(5@24fps), wave(17@5fps)
   animacoes especiais (usadas por eventos): wave
-gf (gf): 30 quadros, tela 279x193 px, escala 0.33, flipX=False, anims=danceLeft(15@24fps), danceRight(15@24fps)
+gf (gf): 16 quadros recortados (3.3 MB de imagem na memoria do Pocket Code), escala final 0.33 (textura 0.26 + SetSize 125%), flipX=False, anims=danceLeft(8@12fps), danceRight(8@12fps)
 
 ==============================================================================
 CENARIO
 ==============================================================================
 stages/bg1.lua: 1 camada(s) convertida(s): bg(bg_1 x2.60)
-Cenario composto em 1950x954 px (mundo x0.65)
+Cenario composto em 1154x564 px, exibido com tamanho 169% (mundo x0.65 na tela)
 
 ==============================================================================
 CAMERA
@@ -118,16 +130,17 @@ Menu: fundo da week 'baldory' (images/menubackgrounds/menu_baldory.png)
 ==============================================================================
 DESEMPENHO
 ==============================================================================
-Pool de clones: 8 notas normais, 16 pecas de notas longas, 8 receptores (antecedencia 542 ms)
+Pool de objetos reutilizaveis: 10 notas normais, 18 pecas de notas longas, 8 receptores (antecedencia 542 ms)
+Memoria estimada das imagens no Pocket Code (pixmap + textura de cada look, todas carregadas): 65 MB
 
 ==============================================================================
 PROJETO GERADO
 ==============================================================================
-Arquivo: output/FNF_Port.catrobat (5.9 MB)
+Arquivo: output/FNF_Port.catrobat (7.0 MB)
 Linguagem Catrobat 1.12, paisagem 1280x720, cena 'FNF'
-31 objetos, 146 scripts, 875 bricks, 56 variaveis globais, 18 listas globais, 262 imagens, 1 sons
-Objetos: Fundo, Cenario, GF, Oponente, Jogador, NotasLongas, Receptores, Notas, Avaliacao, BarraVida, IconeOponente, IconeJogador, Contagem, Bordas, Toque0, Toque1, Toque2, Toque3, MenuFundo, BotaoAnterior, BotaoProximo, BotaoJogar, BotaoRolagem, BotaoOffsetMenos, BotaoOffsetMais, BotaoBotplay, Painel, BotaoRepetir, BotaoMenu, Textos, Jogo
-Tipos usados: AddItemToUserListBrick x135, BroadcastBrick x9, BroadcastScript x101, ChangeVariableBrick x81, ClearUserListBrick x27, CloneBrick x3, DeleteThisCloneBrick x3, HideBrick x93, HideTextBrick x21, IfLogicBeginBrick x10, IfThenLogicBeginBrick x63, PlaceAtBrick x35, PlaySoundBrick x1, ReadVariableFromDeviceBrick x3, RepeatBrick x6, RepeatUntilBrick x26, ReplaceItemInUserListBrick x42, ResetTimerBrick x1, SetLookByIndexBrick x29, SetSizeToBrick x2, SetTransparencyBrick x2, SetVariableBrick x227, SetYBrick x2, ShowBrick x31, ShowTextColorSizeAlignmentBrick x11, StartScript x29, StopAllSoundsBrick x4, WaitBrick x2, WaitUntilBrick x2, WhenClonedScript x3, WhenScript x13, WriteVariableOnDeviceBrick x4
+65 objetos, 280 scripts, 1738 bricks, 56 variaveis globais, 18 listas globais, 472 imagens, 1 sons
+Objetos: Fundo, Cenario, GF, Oponente, Jogador, Longa01, Longa02, Longa03, Longa04, Longa05, Longa06, Longa07, Longa08, Longa09, Longa10, Longa11, Longa12, Longa13, Longa14, Longa15, Longa16, Longa17, Longa18, Receptor1, Receptor2, Receptor3, Receptor4, Receptor5, Receptor6, Receptor7, Receptor8, Nota01, Nota02, Nota03, Nota04, Nota05, Nota06, Nota07, Nota08, Nota09, Nota10, Avaliacao, BarraVida, IconeOponente, IconeJogador, Contagem, Bordas, Toque0, Toque1, Toque2, Toque3, MenuFundo, BotaoAnterior, BotaoProximo, BotaoJogar, BotaoRolagem, BotaoOffsetMenos, BotaoOffsetMais, BotaoBotplay, Painel, PainelTitulo, BotaoRepetir, BotaoMenu, Textos, Jogo
+Tipos usados: AddItemToUserListBrick x339, BroadcastBrick x9, BroadcastScript x203, ChangeVariableBrick x107, ClearUserListBrick x33, HideBrick x277, HideTextBrick x21, IfLogicBeginBrick x10, IfThenLogicBeginBrick x110, PlaceAtBrick x71, PlaySoundBrick x1, ReadVariableFromDeviceBrick x3, RepeatBrick x6, RepeatUntilBrick x81, ReplaceItemInUserListBrick x42, ResetTimerBrick x1, SetLookByIndexBrick x82, SetSizeToBrick x14, SetTransparencyBrick x4, SetVariableBrick x384, SetYBrick x28, ShowBrick x66, ShowTextColorSizeAlignmentBrick x11, StartScript x64, StopAllSoundsBrick x4, WaitBrick x2, WaitUntilBrick x28, WhenScript x13, WriteVariableOnDeviceBrick x4
 
 ==============================================================================
 SCRIPTS CONVERTIDOS
@@ -172,8 +185,11 @@ LIMITACOES
    listados em SCRIPTS CONVERTIDOS. Zoom de camera por batida e deslocamento de
    camera por nota (Cam.lua) nao foram implementados.
  * Uma unica dificuldade por exportacao; personagens/stage da primeira musica.
- * Animacoes longas sao subamostradas para economizar memoria de textura.
- * O texto dinamico (pontos, combo, resultados) usa a fonte do Pocket Code.
+ * O texto dinamico (pontos, combo, resultados) usa a fonte do Pocket Code, e o
+   Catroid recria a textura de cada texto visivel a cada quadro (custo fixo do
+   ShowText; ficam so pontuacao e combo durante a partida).
+ * Animacoes a 12-24 fps com quadros subamostrados (--max-frames) e personagens
+   comuns com textura a 80% (--char-texture-scale 1.0 para nitidez maxima).
  * Mudancas de BPM: tempos das notas corretos, mas a grade de batidas das
    animacoes usa o BPM inicial. Tipos de nota personalizados viram notas
    normais (notas "hurt" sao descartadas).
@@ -185,16 +201,16 @@ VALIDACAO
 ==============================================================================
 Projeto minimo FNF_Minimo.catrobat: problemas=nenhum, referencias=3, erros=nenhum
 Checagem semantica (escopos, assets, broadcasts): OK
-Referencias XStream resolvidas: 552, erros: nenhum
-Integridade ZIP: OK; 270 entradas
-Estrutura (releitura do .catrobat): ZIP: OK (270 entradas)
-Estrutura (releitura do .catrobat): XML bem formado; 552 referencias XStream resolvidas; erros: nenhum
-Estrutura (releitura do .catrobat): Tipos de brick: 28, de script: 4, desconhecidos: nenhum
-Estrutura (releitura do .catrobat): Imagens referenciadas carregadas: 262 (todas existem no ZIP)
-Estrutura (releitura do .catrobat): Estrutura de elementos: 27 assinaturas identicas a projetos reais, 10 conferidas pelo codigo-fonte, divergencias: nenhuma
-Simulacao 'botplay' (BOTPLAY ligado pelo botao do menu): carregamento 10.2 s a 12 acts/quadro; 146.2 s de jogo; estado final RESULTADOS; pontos 119350; erros 0; combo max 341; notas do jogador julgadas 341; notas do oponente tocadas 673; clones simultaneos 32; HUD: 'Pontos: 119350 | Erros: 0 | Precisao: 100%'
-Simulacao 'humano' (toques simulados com erro gaussiano de 35 ms e notas longas seguradas): carregamento 10.2 s a 12 acts/quadro; 146.2 s de jogo; estado final RESULTADOS; pontos 106950; erros 0; combo max 341; notas do jogador julgadas 341; notas do oponente tocadas 673; clones simultaneos 32; HUD: 'Pontos: 106950 | Erros: 0 | Precisao: 92.61%'
-Simulacao 'sem_toques' (nenhum toque: deve chegar ao GAME OVER e voltar ao menu): carregamento 10.2 s a 12 acts/quadro; 32.6 s de jogo; estado final GAME OVER; pontos 0; erros 15; combo max 0; notas do jogador julgadas 15; notas do oponente tocadas 100; clones simultaneos 32; HUD: 'Pontos: 0 | Erros: 15 | Precisao: 0%'; TENTAR DE NOVO -> partida reiniciada em 0.13 s (chart em cache), estado apos 3 s: 1.0; botao MENU -> estado 0.0, clones restantes 0
+Referencias XStream resolvidas: 945, erros: nenhum
+Integridade ZIP: OK; 480 entradas
+Estrutura (releitura do .catrobat): ZIP: OK (480 entradas)
+Estrutura (releitura do .catrobat): XML bem formado; 945 referencias XStream resolvidas; erros: nenhum
+Estrutura (releitura do .catrobat): Tipos de brick: 26, de script: 3, desconhecidos: nenhum
+Estrutura (releitura do .catrobat): Imagens referenciadas carregadas: 472 (todas existem no ZIP)
+Estrutura (releitura do .catrobat): Estrutura de elementos: 24 assinaturas identicas a projetos reais, 10 conferidas pelo codigo-fonte, divergencias: nenhuma
+Simulacao 'botplay' (BOTPLAY ligado pelo botao do menu): carregamento 10.2 s a 12 acts/quadro; 146.3 s de jogo; estado final RESULTADOS; pontos 119350; erros 0; combo max 341; notas do jogador julgadas 341; notas do oponente tocadas 673; clones criados 0; HUD: 'Pontos: 119350 | Erros: 0 | Precisao: 100%'
+Simulacao 'humano' (toques simulados com erro gaussiano de 35 ms e notas longas seguradas): carregamento 10.2 s a 12 acts/quadro; 146.3 s de jogo; estado final RESULTADOS; pontos 108050; erros 0; combo max 341; notas do jogador julgadas 341; notas do oponente tocadas 673; clones criados 0; HUD: 'Pontos: 108050 | Erros: 0 | Precisao: 93.23%'
+Simulacao 'sem_toques' (nenhum toque: deve chegar ao GAME OVER e voltar ao menu): carregamento 10.2 s a 12 acts/quadro; 32.6 s de jogo; estado final GAME OVER; pontos 0; erros 15; combo max 0; notas do jogador julgadas 15; notas do oponente tocadas 100; clones criados 0; HUD: 'Pontos: 0 | Erros: 14 | Precisao: 0%'; TENTAR DE NOVO -> partida reiniciada em 0.13 s (chart em cache), estado apos 3 s: 1.0; botao MENU -> estado 0.0, clones restantes 0
 Teste com o desserializador REAL do Pocket Code: converter/catroid_test/FnfPortDeserializationTest.java (XstreamSerializer.fromXML + identidade das referencias + ida e volta das formulas pelo InternFormulaParser). Preparado, mas NAO executado neste ambiente (a execucao do build Gradle do Catroid foi bloqueada); ver converter/README.md.
 Quadros renderizados a partir do estado simulado: output/preview_menu.png, output/preview_gameplay.png (BOTPLAY, 28.2 s de musica)
 

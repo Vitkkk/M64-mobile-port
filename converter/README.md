@@ -12,7 +12,7 @@ python3 converter/validate_catrobat.py output/FNF_Port.catrobat --full
 Requisitos: Python 3.8+, Pillow e `ffmpeg` (OGG → MP3).
 
 Opções úteis: `--songs a,b` (escolhe músicas), `--difficulty hard`, `--name "Meu Port"`,
-`--max-frames 16` / `--max-special-frames 34` (memória de textura),
+`--max-frames 8` / `--max-special-frames 17` / `--char-texture-scale 0.8` (memória de textura),
 `--no-simulate` (pula a simulação), `--minimal` (gera também `FNF_Minimo.catrobat`).
 
 ## Arquivos
@@ -33,12 +33,21 @@ Opções úteis: `--songs a,b` (escolhe músicas), `--difficulty hard`, `--name 
 * **Toque0..3**: quatro colunas multitoque. `quando tocado` julga a nota (janelas do
   Psych), `COLLIDES_WITH_FINGER` detecta notas longas seguradas; um laço por lane
   marca erros e julga as peças de sustain.
-* **Notas / NotasLongas / Receptores**: pools de clones reutilizáveis — cada clone
-  percorre as notas `k, k+P, k+2P…`, sem um script por nota.
+* **Nota01.. / Longa01.. / Receptor1..8**: pools de objetos fixos (sem clones) —
+  o objeto `j` percorre as notas `j, j+P, j+2P…`, sem um script por nota.
 * **Jogador / Oponente / GF**: quadros recortados dos spritesheets numa tela comum
   (offsets, escala e flipX do Psych), animações escolhidas por variáveis globais.
 * **HUD**: barra de vida (51 looks), ícones, avaliação, combo, pontuação, contagem,
   painéis de resultado/game over, menu com seleção de música e opções salvas no aparelho.
+
+## Desempenho no aparelho
+
+O runtime do Catroid tem custos que guiaram o gerador (ver relatório, seção DESEMPENHO):
+o pixmap e a textura de cada look ficam na memória; cada `SetLook` dispara um evento
+para todos os objetos; clones ganham shader próprio; laços sem bricks visuais rodam em
+todo "act" do palco; `ShowText` recria a textura do texto a cada quadro. Por isso os
+quadros são recortados, as imagens grandes são minúsculas e ampliadas com `SetSize`,
+os looks só mudam quando necessário, não há clones e os laços de lógica rodam a ~50 Hz.
 
 ## Validação
 
