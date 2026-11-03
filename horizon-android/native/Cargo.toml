@@ -1,0 +1,29 @@
+# The Android entry point of the Horizon client: `android_main`, which the
+# launcher's GameActivity calls. It is copied into Horizon's workspace as
+# crates/horizon-android by tools/build-native.sh, so it builds against the
+# same Cargo.lock and patched crates as Horizon itself.
+[package]
+name = "horizon-android"
+version = "0.1.0"
+edition.workspace = true
+license = "GPL-3.0-only"
+publish = false
+description = "Horizon running inside the Zenith launcher's GameActivity on Android"
+
+[lib]
+name = "horizon_android"
+crate-type = ["cdylib"]
+path = "src/lib.rs"
+
+[dependencies]
+# The game, without controller hardware (gilrs/hidapi have no Android backend):
+# the touch overlay drives Horizon's virtual pad through the control socket.
+horizon-client = { path = "../horizon-client", default-features = false, features = ["audio"] }
+horizon-threads = { path = "../horizon-threads" }
+horizon-mods = { path = "../horizon-mods", default-features = false, features = ["index"] }
+# The window lives in a GameActivity (androidx.games:games-activity 4.x).
+winit = { version = "0.30.13", features = ["android-game-activity"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+log = "0.4"
+libc = "0.2"
