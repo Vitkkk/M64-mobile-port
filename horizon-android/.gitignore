@@ -5,3 +5,4 @@ local.properties
 .idea/
 # A biblioteca nativa é gerada por tools/build-native.sh
 app/src/main/jniLibs/
+.kotlin/
