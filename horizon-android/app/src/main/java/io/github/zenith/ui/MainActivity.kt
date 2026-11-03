@@ -11,6 +11,9 @@ import androidx.activity.viewModels
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -111,7 +114,7 @@ class MainActivity : ComponentActivity() {
             if (subPage != null) subPage = null else tab = Tab.HOME
         }
 
-        if (!vm.settings.acceptedNotice) FirstRunNotice()
+        if (!vm.acceptedNotice) FirstRunNotice()
         pendingLink?.let { DeepLinkDialog(it) }
         vm.lastExit?.let { exit ->
             AlertDialog(
@@ -200,14 +203,20 @@ class MainActivity : ComponentActivity() {
                             "• Para jogar, entre com uma conta Microsoft que tenha o jogo, como nos outros launchers.\n\n" +
                             "Não é um produto oficial do Minecraft, nem aprovado ou associado à Mojang ou à Microsoft."
                     )
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Checkbox(checked = agreed, onCheckedChange = { agreed = it })
+                    // A linha inteira marca a caixa, não só o quadradinho.
+                    Row(
+                        Modifier.fillMaxWidth().toggleable(value = agreed, role = Role.Checkbox, onValueChange = { agreed = it })
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Checkbox(checked = agreed, onCheckedChange = null)
+                        Spacer(Modifier.width(8.dp))
                         Text("Entendi e tenho minha cópia do jogo")
                     }
                 }
             },
             confirmButton = {
-                TextButton(enabled = agreed, onClick = { vm.settings.acceptedNotice = true; vm.refresh() }) { Text("Continuar") }
+                TextButton(enabled = agreed, onClick = { vm.acceptNotice() }) { Text("Continuar") }
             },
         )
     }

@@ -28,6 +28,8 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
     var resources by mutableStateOf(GameResources.Status(false, null, null, 0, "Verificando…")); private set
     var theme by mutableStateOf(settings.theme)
     var accent by mutableStateOf(settings.accent)
+    /** O aviso de boas-vindas foi aceito (estado do Compose, para a tela reagir). */
+    var acceptedNotice by mutableStateOf(settings.acceptedNotice); private set
     var busy by mutableStateOf<String?>(null)
     var progress by mutableStateOf(-1f)
     var message by mutableStateOf<String?>(null)
@@ -58,6 +60,8 @@ class LauncherViewModel(app: Application) : AndroidViewModel(app) {
         settings.selectedAccount = a.id
         account = a
     }
+
+    fun acceptNotice() { settings.acceptedNotice = true; acceptedNotice = true }
 
     fun setThemeMode(v: String) { settings.theme = v; theme = v }
     fun setAccentColor(v: String) { settings.accent = v; accent = v }
