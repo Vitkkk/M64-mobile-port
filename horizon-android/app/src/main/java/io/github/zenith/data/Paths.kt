@@ -29,7 +29,7 @@ object Paths {
         internal = context.filesDir
         external = context.getExternalFilesDir(null) ?: context.filesDir
         cache = context.cacheDir
-        nativeLibDir = File(context.applicationInfo.nativeLibraryDir)
+        nativeLibDir = context.applicationInfo.nativeLibraryDir?.let(::File) ?: File(context.filesDir, "lib")
     }
 
     /** Recursos preparados pelo `horizon-prepare` a partir da sua cópia do jogo. */

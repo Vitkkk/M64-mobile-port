@@ -69,6 +69,15 @@ android {
 
     testOptions {
         unitTests.isReturnDefaultValues = true
+        unitTests.isIncludeAndroidResources = true
+        unitTests.all {
+            // ./gradlew testDebugUnitTest -Pzenith.screenshots grava PNGs das telas em app/build/screens/
+            if (project.hasProperty("zenith.screenshots")) it.systemProperty("zenith.screenshots", "1")
+            // O Robolectric baixa o android-all do Maven Central; -Pzenith.mavenMirror=URL usa um espelho.
+            (project.findProperty("zenith.mavenMirror") as String?)?.let { url ->
+                it.systemProperty("robolectric.dependency.repo.url", url)
+            }
+        }
     }
 }
 
@@ -94,4 +103,7 @@ dependencies {
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.json:json:20240303")
+    testImplementation("org.robolectric:robolectric:4.14.1")
+    testImplementation("androidx.compose.ui:ui-test-junit4")
+    debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

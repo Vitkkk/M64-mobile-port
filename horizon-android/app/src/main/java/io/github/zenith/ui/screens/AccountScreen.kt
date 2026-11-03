@@ -119,10 +119,8 @@ fun AccountScreen(vm: LauncherViewModel) {
                 Spacer(Modifier.height(4.dp))
             }
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { signingIn = true }) { Icon(Icons.Filled.Window, null); Spacer(Modifier.width(6.dp)); Text("Entrar com Microsoft") }
-                OutlinedButton(onClick = { addingOffline = true }) { Icon(Icons.Filled.PersonAdd, null); Spacer(Modifier.width(6.dp)); Text("Nome offline") }
-            }
+            Button(onClick = { signingIn = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Filled.Window, null); Spacer(Modifier.width(6.dp)); Text("Entrar com Microsoft") }
+            OutlinedButton(onClick = { addingOffline = true }, modifier = Modifier.fillMaxWidth()) { Icon(Icons.Filled.PersonAdd, null); Spacer(Modifier.width(6.dp)); Text("Adicionar nome offline") }
             if (vm.settings.msaClientId.isBlank()) {
                 Spacer(Modifier.height(6.dp))
                 Text(

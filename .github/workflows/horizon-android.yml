@@ -59,9 +59,9 @@ jobs:
           workspaces: horizon-android/third_party/horizon -> target
           key: android-${{ inputs.profile || 'release' }}
       - name: Compilar libhorizon_android.so
-        env:
-          ANDROID_NDK_HOME: ${{ env.ANDROID_HOME }}/ndk/27.2.12479018
-        run: horizon-android/tools/build-native.sh --abi arm64-v8a --profile ${{ inputs.profile || 'release' }}
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          horizon-android/tools/build-native.sh --abi arm64-v8a --profile ${{ inputs.profile || 'release' }}
       - name: Compilar o APK
         working-directory: horizon-android
         env:

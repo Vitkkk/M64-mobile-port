@@ -24,7 +24,6 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -92,7 +91,10 @@ fun ControlsScreen(vm: LauncherViewModel) {
             key(current, s.overlayOpacity) {
                 AndroidView(
                     factory = { ctx ->
-                        ControlsOverlayView(ctx, current, NoSink, ControlsOverlayView.Config(opacity = s.overlayOpacity)).apply { playing = true }
+                        // A miniatura tem a largura da tela em retrato; o jogo usa o lado maior.
+                        val dm = ctx.resources.displayMetrics
+                        val scale = minOf(dm.widthPixels, dm.heightPixels).toFloat() / maxOf(dm.widthPixels, dm.heightPixels)
+                        ControlsOverlayView(ctx, current, NoSink, ControlsOverlayView.Config(opacity = s.overlayOpacity, sizeScale = scale)).apply { playing = true }
                     },
                     update = { it.layout = current },
                     modifier = Modifier.fillMaxSize(),
@@ -104,8 +106,8 @@ fun ControlsScreen(vm: LauncherViewModel) {
             Button(onClick = {
                 context.startActivity(Intent(context, ControlsEditorActivity::class.java).putExtra(ControlsEditorActivity.EXTRA_LAYOUT, current.id))
             }) { Icon(Icons.Filled.Edit, null); Spacer(Modifier.width(6.dp)); Text("Editar layout") }
-            OutlinedButton(onClick = { exporter.launch("${current.name}.json") }) { Text("Exportar") }
-            OutlinedButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text("Importar") }
+            TextButton(onClick = { exporter.launch("${current.name}.json") }) { Text("Exportar") }
+            TextButton(onClick = { importer.launch(arrayOf("application/json", "*/*")) }) { Text("Importar") }
         }
 
         Section("Layouts", subtitle = "O ativo vale para todas as instâncias que não escolheram outro.") {

@@ -94,6 +94,16 @@ class ControlsEditorActivity : AppCompatActivity() {
         bar.addView(sizeBar, LinearLayout.LayoutParams(320, ViewGroup.LayoutParams.WRAP_CONTENT))
         val scroller = HorizontalScrollView(this).apply { addView(bar) }
         root.addView(scroller, FrameLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP))
+        // A barra cobre os botões do topo: dá para recolhê-la numa alça.
+        val handle = Button(this).apply {
+            text = "▼ Ferramentas"; isAllCaps = false; visibility = android.view.View.GONE
+            setOnClickListener { visibility = android.view.View.GONE; scroller.visibility = android.view.View.VISIBLE }
+        }
+        root.addView(handle, FrameLayout.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.WRAP_CONTENT, Gravity.TOP or Gravity.CENTER_HORIZONTAL))
+        Button(this).apply {
+            text = "▲"; setOnClickListener { scroller.visibility = android.view.View.GONE; handle.visibility = android.view.View.VISIBLE }
+            bar.addView(this, 0)
+        }
         setContentView(root)
         refreshInfo()
     }

@@ -130,7 +130,11 @@ fun HomeScreen(vm: LauncherViewModel, onNavigate: (Tab, String?) -> Unit) {
                 account != null,
             ) { onNavigate(Tab.ACCOUNT, null) }
             Check(
-                if (vm.settings.ownerGateBypass) "Posse do jogo: verificação desligada (desenvolvimento)" else "Posse do Java Edition confirmada",
+                when {
+                    vm.settings.ownerGateBypass -> "Posse do jogo: verificação desligada (desenvolvimento)"
+                    AccountStore.anyOwner() -> "Posse do Java Edition confirmada"
+                    else -> "Posse do Java Edition: entre com a conta Microsoft"
+                },
                 vm.settings.ownerGateBypass || AccountStore.anyOwner(),
             ) { onNavigate(Tab.ACCOUNT, null) }
         }

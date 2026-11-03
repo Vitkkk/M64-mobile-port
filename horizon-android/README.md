@@ -12,6 +12,16 @@ desenhando com Vulkan (ou OpenGL ES) pelo wgpu.
 > (`.github/workflows/horizon-android.yml`), mas **ainda não foi testado num
 > celular**. Ver [Limitações](#limitações-e-roadmap).
 
+## Telas
+
+Renderizadas pelo Robolectric a partir do código real (`./gradlew testDebugUnitTest -Pzenith.screenshots`):
+
+| Início | Conta e skin | Controles | Gráficos |
+|---|---|---|---|
+| ![](docs/screens/01-inicio.png) | ![](docs/screens/04-conta.png) | ![](docs/screens/05-controles.png) | ![](docs/screens/07-graficos.png) |
+
+![Editor de controles](docs/screens/08-editor-controles.png)
+
 ## O que tem
 
 | Área | O que faz |

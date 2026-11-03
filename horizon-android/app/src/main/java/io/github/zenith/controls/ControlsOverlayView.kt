@@ -50,6 +50,8 @@ class ControlsOverlayView(
         val opacity: Float = 0.6f,
         /** guiScale do options.txt (0 = automático), para achar a hotbar. */
         val guiScale: Int = 0,
+        /** Multiplica os tamanhos em dp (a prévia em miniatura usa < 1). */
+        val sizeScale: Float = 1f,
     )
 
     var layout: ControlLayout = layout
@@ -82,7 +84,7 @@ class ControlsOverlayView(
     var onLayoutChanged: (ControlLayout) -> Unit = {}
 
     private val density = resources.displayMetrics.density
-    private fun dp(v: Float) = v * density
+    private fun dp(v: Float) = v * density * config.sizeScale
 
     private val fill = Paint(Paint.ANTI_ALIAS_FLAG)
     private val stroke = Paint(Paint.ANTI_ALIAS_FLAG).apply { style = Paint.Style.STROKE; strokeWidth = dp(1.5f) }
@@ -227,7 +229,7 @@ class ControlsOverlayView(
             canvas.drawRect(r.left - g, r.top - g, r.right + g, r.bottom + g, stroke)
         }
         val size = text.textSize
-        text.textSize = min(size, r.height() * 0.42f).let { if (b.label.length > 3) it * 0.75f else it }
+        text.textSize = min(size * config.sizeScale, r.height() * 0.42f).let { if (b.label.length > 3) it * 0.75f else it }
         text.alpha = max(alpha, 160)
         canvas.drawText(b.label, r.centerX(), r.centerY() - (text.descent() + text.ascent()) / 2, text)
         text.textSize = size
