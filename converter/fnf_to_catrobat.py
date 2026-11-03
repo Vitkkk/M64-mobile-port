@@ -1678,6 +1678,28 @@ def build_project(mod, songs, week_info, opts):
         change_var(camX, (V(camTX) - V(camX)) * 0.1),
         change_var(camY, (V(camTY) - V(camY)) * 0.1)], every=0.033)))
 
+    if opts.medidor:
+        # medidor de desempenho sempre visivel (mesma medida do FNF_Diagnostico)
+        md_ = proj.sprite("Medidor")
+        md_.look("vazio", "medidor_vazio.png")
+        add_img("medidor_vazio.png", Image.new("RGBA", (2, 2), (0, 0, 0, 0)))
+        mv, ma, mt = md_.local_var("voltasMedidor"), md_.local_var("actsMedidor"), G("textoMedidor")
+        fase = iff(V(gameState).eq(5), text("carregando tudo"), iff(V(gameState).eq(0), text("menu"),
+                   iff(V(gameState).eq(4), text("carregando musica"), iff(V(gameState).eq(1), text("jogo"),
+                       text("fim")))))
+        md_.add(when_start(hide(), set_var(mv, 0), set_var(mt, "medindo..."),
+                           forever([set_transparency(100), change_var(mv, 1)])))
+        md_.add(when_start(set_var(ma, 0), forever([change_var(ma, 1)])))
+        md_.add(when_start(wait(0.5), show_text(mt, 0, 335, 50, "#FFFF00"),
+                           forever([wait(1), set_var(mt, join("Lacos/s: ", V(mv), "  Acts/s: ", V(ma),
+                                                               "  fase: ", fase)),
+                                    set_var(mv, 0), set_var(ma, 0)])))
+        md_.add(when_received("menu", show_text(mt, 0, 335, 50, "#FFFF00")),
+                when_received("load", show_text(mt, 0, 335, 50, "#FFFF00")),
+                when_received("start", show_text(mt, 0, 335, 50, "#FFFF00")))
+        all_txt_extra = mt
+        R.add("DESEMPENHO", "Modo --medidor: texto amarelo no topo com lacos/s, acts/s e fase")
+
     # pre-carregamento: cada objeto com varios looks passa por todos eles (oculto).
     # O Catroid so decodifica o PNG e cria a textura quando o look e usado pela
     # primeira vez; assim isso acontece na tela "Carregando tudo...".
@@ -1880,6 +1902,7 @@ def main(argv=None):
     ap.add_argument("--minimal", action="store_true", help="gera tambem o projeto minimo de validacao")
     ap.add_argument("--no-simulate", action="store_true", help="pula a simulacao headless do gameplay")
     ap.add_argument("--lite", action="store_true", help="sem personagens e cenario (aparelhos fracos)")
+    ap.add_argument("--medidor", action="store_true", help="mostra lacos/s, acts/s e fase no topo da tela")
     opts = ap.parse_args(argv)
 
     out_dir = os.path.dirname(os.path.abspath(opts.output))
