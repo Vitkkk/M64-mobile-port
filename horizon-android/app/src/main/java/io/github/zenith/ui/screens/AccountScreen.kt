@@ -25,6 +25,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PersonAdd
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Window
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -52,6 +53,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import io.github.zenith.DevFlags
 import io.github.zenith.auth.MicrosoftAuth
 import io.github.zenith.data.Account
 import io.github.zenith.data.AccountStore
@@ -72,6 +74,7 @@ fun AccountScreen(vm: LauncherViewModel) {
     var signingIn by remember { mutableStateOf(false) }
     var addingOffline by remember { mutableStateOf(false) }
     var removing by remember { mutableStateOf<Account?>(null) }
+    var creatingTest by remember { mutableStateOf(false) }
     val account = vm.account
     var skin by remember(account) { mutableStateOf<Bitmap?>(null) }
     var back by remember { mutableStateOf(false) }
@@ -111,6 +114,7 @@ fun AccountScreen(vm: LauncherViewModel) {
                         Text(a.name, fontWeight = FontWeight.Bold)
                         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             Chip(if (a.isMicrosoft) "Microsoft" else "Offline")
+                            if (!a.isMicrosoft && vm.settings.ownerGateBypass) Chip("Teste", MaterialTheme.colorScheme.tertiary)
                             if (a.isMicrosoft && AccountStore.secrets(a.id)?.owns == true) Chip("Tem o Java Edition")
                         }
                     }
@@ -127,6 +131,20 @@ fun AccountScreen(vm: LauncherViewModel) {
                     "Este build não tem Client ID do Azure. Informe o seu em Ajustes → Conta Microsoft.",
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error,
                 )
+            }
+        }
+
+        if (DevFlags.TEST_ACCOUNT) {
+            Section("Modo de teste", subtitle = "Temporário: será removido depois dos testes.") {
+                Text(
+                    "Cria uma conta offline e desliga a verificação de posse do jogo, para testar sem conta Microsoft. " +
+                        "Os recursos do jogo continuam vindo da sua cópia.",
+                    style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(onClick = { creatingTest = true }, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.Science, null); Spacer(Modifier.width(6.dp)); Text("Criar conta de teste (offline)")
+                }
             }
         }
 
@@ -195,6 +213,33 @@ fun AccountScreen(vm: LauncherViewModel) {
                 }) { Text("Adicionar") }
             },
             dismissButton = { TextButton(onClick = { addingOffline = false }) { Text("Cancelar") } },
+        )
+    }
+    if (creatingTest) {
+        var name by remember { mutableStateOf("Tester") }
+        AlertDialog(
+            onDismissRequest = { creatingTest = false },
+            title = { Text("Conta de teste") },
+            text = {
+                Column {
+                    OutlinedTextField(name, { name = it.take(16) }, label = { Text("Nome no jogo") }, singleLine = true, isError = !Account.validName(name))
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "Desliga a verificação de posse do jogo (dá para religar em Ajustes → Conta Microsoft). Só para testes.",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(enabled = Account.validName(name), onClick = {
+                    creatingTest = false
+                    vm.work("Criando a conta de teste…") {
+                        val a = DevFlags.createTestAccount(vm.settings, name)
+                        vm.toast("Conta de teste ${a.name} pronta")
+                    }
+                }) { Text("Criar") }
+            },
+            dismissButton = { TextButton(onClick = { creatingTest = false }) { Text("Cancelar") } },
         )
     }
     removing?.let { a ->

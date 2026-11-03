@@ -46,6 +46,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import io.github.zenith.BuildConfig
+import io.github.zenith.DevFlags
 import io.github.zenith.data.AccountStore
 import io.github.zenith.data.Skins
 import io.github.zenith.game.GameLauncher
@@ -115,7 +116,12 @@ fun HomeScreen(vm: LauncherViewModel, onNavigate: (Tab, String?) -> Unit) {
                 Spacer(Modifier.height(8.dp))
                 when (problem) {
                     is GameLauncher.Problem.NoResources -> OutlinedButton(onClick = { onNavigate(Tab.SETTINGS, "resources") }) { Text("Importar recursos") }
-                    is GameLauncher.Problem.NoOwner, is GameLauncher.Problem.NoAccount -> OutlinedButton(onClick = { onNavigate(Tab.ACCOUNT, null) }) { Text("Ir para Conta") }
+                    is GameLauncher.Problem.NoOwner, is GameLauncher.Problem.NoAccount -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { onNavigate(Tab.ACCOUNT, null) }) { Text("Ir para Conta") }
+                        if (DevFlags.TEST_ACCOUNT) OutlinedButton(onClick = {
+                            vm.work("Criando a conta de teste…") { DevFlags.createTestAccount(vm.settings, "Tester") }
+                        }) { Text("Usar conta de teste") }
+                    }
                     is GameLauncher.Problem.NoEngine -> OutlinedButton(onClick = { onNavigate(Tab.SETTINGS, "about") }) { Text("Como compilar") }
                     else -> {}
                 }
