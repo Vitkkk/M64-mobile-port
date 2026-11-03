@@ -34,7 +34,7 @@ KNOWN_BRICKS = {
     "RepeatBrick", "RepeatUntilBrick", "ReplaceItemInUserListBrick", "ResetTimerBrick", "SetLookBrick",
     "SetLookByIndexBrick", "SetSizeToBrick", "SetTransparencyBrick", "SetVariableBrick", "SetXBrick",
     "SetYBrick", "ShowBrick", "ShowTextColorSizeAlignmentBrick", "StopAllSoundsBrick", "WaitBrick",
-    "WaitUntilBrick", "WriteVariableOnDeviceBrick", "SetVolumeToBrick", "StopScriptBrick", "ForeverBrick"}
+    "WaitUntilBrick", "WriteVariableOnDeviceBrick", "SetVolumeToBrick", "StopScriptBrick", "ForeverBrick", "BroadcastWaitBrick"}
 KNOWN_SCRIPTS = {"StartScript", "BroadcastScript", "WhenScript", "WhenClonedScript"}
 
 
@@ -331,7 +331,11 @@ def run_scenario(proj, mode, seconds, seed=1, apf=12, chart=None, log=None):
     rnd = random.Random(seed)
     res = {"modo": mode}
     t0 = time.time()
-    sim.run_until(0.5)
+    sim.run_until(0.3)
+    while sim.gvars.get("estado") != 0.0 and sim.time < 120:
+        sim.step_frame()
+    res["preparo_inicial_s"] = round(sim.time, 2)
+    sim.run_until(sim.time + 0.3)
     if sim.gvars.get("estado") != 0.0:
         res["erro"] = "menu nao iniciou (estado=%r)" % sim.gvars.get("estado")
         return res

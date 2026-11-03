@@ -13,7 +13,8 @@ Requisitos: Python 3.8+, Pillow e `ffmpeg` (OGG → MP3).
 
 Opções úteis: `--songs a,b` (escolhe músicas), `--difficulty hard`, `--name "Meu Port"`,
 `--max-frames 8` / `--max-special-frames 17` / `--char-texture-scale 0.8` (memória de textura),
-`--no-simulate` (pula a simulação), `--minimal` (gera também `FNF_Minimo.catrobat`).
+`--no-simulate` (pula a simulação), `--minimal` (gera também `FNF_Minimo.catrobat` e
+`FNF_Diagnostico.catrobat`, que mede laços/s e acts/s do Pocket Code no aparelho), `--lite`.
 
 ## Arquivos
 

@@ -487,6 +487,8 @@ class Sim:
         if im is None:
             return False
         s = inst.size / 100.0
+        if s <= 0:
+            return False
         u = (x - inst.x) / s + im.width / 2.0
         v = (inst.y - y) / s + im.height / 2.0
         if 0 <= u < im.width and 0 <= v < im.height:
@@ -498,20 +500,23 @@ class Sim:
             if self.hit(inst, x, y):
                 for i, (typ, msg, bricks) in enumerate(inst.sprite.scripts):
                     if typ == "WhenScript":
-                        self.pending.append((inst, i))
+                        self.pending.append((inst, i, None))
                 return inst.sprite.name
         return None
 
     # --- threads ---
-    def start_thread(self, inst, idx):
+    def start_thread(self, inst, idx, waiter=None):
         typ, msg, bricks = inst.sprite.scripts[idx]
-        inst.threads[idx] = self.run_seq(inst, bricks)
+        g = self.run_seq(inst, bricks)
+        inst.threads[idx] = g
+        if waiter is not None:
+            waiter.append((inst, idx, g))
 
-    def broadcast(self, msg):
+    def broadcast(self, msg, waiter=None):
         for inst in list(self.instances):
             for i, (typ, m, bricks) in enumerate(inst.sprite.scripts):
                 if typ == "BroadcastScript" and m == msg:
-                    self.pending.append((inst, i))
+                    self.pending.append((inst, i, waiter))
         self.log.append((round(self.time, 3), "broadcast", msg))
 
     def run_seq(self, inst, bricks):
@@ -639,13 +644,20 @@ class Sim:
             inst.visible = False
         elif t == "BroadcastBrick":
             self.broadcast(b.message)
+        elif t == "BroadcastWaitBrick":
+            waiter = []
+            self.broadcast(b.message, waiter)
+            yield
+            while any(i.alive and i.threads.get(ix) is g for i, ix, g in waiter):
+                yield
+            return
         elif t == "CloneBrick":
             c = Instance(inst.sprite, self, parent=inst)
             pos = self.instances.index(inst) + 1
             self.instances.insert(pos, c)
             for i, (typ, msg, bricks) in enumerate(inst.sprite.scripts):
                 if typ == "WhenClonedScript":
-                    self.pending.append((c, i))
+                    self.pending.append((c, i, None))
             nclones = sum(1 for x in self.instances if x.is_clone)
             self.max_clones = max(self.max_clones, nclones)
         elif t == "DeleteThisCloneBrick":
@@ -694,9 +706,9 @@ class Sim:
     def step_frame(self):
         for _ in range(self.apf):
             self.acts += 1
-            for inst, idx in self.pending:
+            for inst, idx, waiter in self.pending:
                 if inst.alive:
-                    self.start_thread(inst, idx)
+                    self.start_thread(inst, idx, waiter)
             self.pending = []
             for inst in list(self.instances):
                 if not inst.alive:

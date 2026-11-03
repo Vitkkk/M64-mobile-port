@@ -1083,15 +1083,8 @@ def build_project(mod, songs, week_info, opts):
             init += [add_item(oX, dx_), add_item(oY, dy_)]
         # o look so e trocado quando o quadro muda (cada SetLook dispara um evento
         # para todos os objetos no Catroid); o deslocamento do recorte e somado.
-        pre, pi = sp.local_var("preCarregado"), sp.local_var("preIndice")
-        sp.add(when_start(hide(), set_var(pre, 0), *init))
-        # pre-carrega pixmap+textura de cada quadro durante "Carregando..." (o Catroid
-        # so le o PNG quando o look e usado pela primeira vez -> travadas no meio da musica)
-        sp.add(when_received("menu", hide()),
-               when_received("load", hide(), if_(V(pre).eq(0), [
-                   set_var(pi, 1),
-                   repeat(len(ch.frames_png), [set_look_index(V(pi)), change_var(pi, 1)]),
-                   set_var(pre, 1)])))
+        sp.add(when_start(hide(), *init))
+        sp.add(when_received("menu", hide()), when_received("load", hide()))
         cx, cy = ch.world_center()
         sing_ms = ch.sing_duration * song0.step_at(0)
         beat_grid = V(crochet) * 2
@@ -1498,6 +1491,7 @@ def build_project(mod, songs, week_info, opts):
     acc = iff(V(played) > 0, fround(V(hitSum) / V(played) * 10000) / 100, 100)
     all_txt = [scoreTxt, comboTxt, res1, res2, res3, loadTxt, songName, offsetTxt]
     tx.add(when_start(hide()))
+    tx.add(when_received("boot", show_text(loadTxt, 0, 0, 90, "#FFFFFF")))
     tx.add(when_received("menu", *[hide_text(v) for v in all_txt],
                          show_text(songName, 0, -165, 75, "#FFFFFF"),
                          show_text(offsetTxt, 0, -305, 60, "#FFFFFF")))
@@ -1535,14 +1529,21 @@ def build_project(mod, songs, week_info, opts):
         read_var_device(offsetMs), read_var_device(downscroll), read_var_device(botplay),
         set_var(offsetMs, fround(V(offsetMs) * 1)),
         set_var(downscroll, iff(V(downscroll).eq(1), 1, 0)), set_var(botplay, iff(V(botplay).eq(1), 1, 0)),
-        broadcast("menu")))
+        # carregamento inicial: decodifica o chart da 1a musica e le TODAS as imagens
+        # (pixmap + textura) antes do menu, para nada ser carregado durante o jogo
+        set_var(gameState, 5), set_var(loadTxt, "Carregando tudo..."), broadcast("boot"),
+        broadcast_wait("preparar"),
+        set_var(loadTxt, ""), broadcast("menu")))
+    jg.add(when_received("preparar", broadcast_wait("carregarDados")))
     jg.add(when_received("menu", set_var(gameState, 0), change_var(runId, 1), stop_all_sounds(),
                          set_var(offsetTxt, join("Offset: ", V(offsetMs), " ms")), *name_chain))
     jg.add(when_received("songsel", *name_chain))
 
+    data_load = []  # dados da musica escolhida (so roda se a musica mudou)
     load = [set_var(gameState, 4), change_var(runId, 1), stop_all_sounds(),
             set_var(loadTxt, "Carregando musica..."),
-            *[clear_list(l) for l in (eT, eK, eA, fT, fH, ptrT, ptrH, held, strumUntil, laneXL)],
+            broadcast_wait("carregarDados"),
+            *[clear_list(l) for l in (ptrT, ptrH, held, strumUntil, laneXL)],
             *[add_item(laneXL, round(x_, 2)) for x_ in lane_x]]
     ev_supported = {}
     for i, s in enumerate(songs, 1):
@@ -1583,7 +1584,7 @@ def build_project(mod, songs, week_info, opts):
         for et, kind, val in evs:
             branch += [add_item(eT, round(et)), add_item(eK, kind), add_item(eA, val)]
         branch.append(set_var(nEv, len(evs)))
-        load.append(if_(V(songIdx).eq(i), branch))
+        data_load.append(if_(V(songIdx).eq(i), branch))
         R.add("CHART", "%s: %d notas (%d jogador / %d oponente), %d pecas de notas longas, %d secoes, "
               "BPM %.1f, velocidade %.2f, duracao %.1f s, formato %s, arquivo %s"
               % (s.name, len(cdat["taps"]), sum(1 for _, l in cdat["taps"] if l >= 4),
@@ -1604,12 +1605,14 @@ def build_project(mod, songs, week_info, opts):
 
     # decodifica so quando a musica muda (reiniciar a mesma musica e instantaneo)
     loadedSong = G("musicaCarregada")
-    load.append(if_(V(loadedSong).ne(V(songIdx)),
-                    [clear_list(l) for l in (tT, tL, tN, hT, hL, hK, hN, sT, sM)]
+    jg.add(when_received("carregarDados", if_(V(loadedSong).ne(V(songIdx)),
+                    [clear_list(l) for l in (tT, tL, tN, hT, hL, hK, hN, sT, sM, eT, eK, eA, fT, fH)]
+                    + data_load
                     + decode(nTaps, dataT, TAP_REC, [(tT, 0, 7), (tL, 7, 1), (tN, 8, 5)])
                     + decode(nHolds, dataH, HOLD_REC, [(hT, 0, 7), (hL, 7, 1), (hK, 8, 1), (hN, 9, 5)])
                     + decode(nSec, dataS, SEC_REC, [(sT, 0, 7), (sM, 7, 1)])
-                    + [set_var(loadedSong, V(songIdx))]))
+                    + [set_var(dataT, ""), set_var(dataH, ""), set_var(dataS, ""),
+                       set_var(loadedSong, V(songIdx))])))
     load += [add_item(ptrT, item(i, fT)) for i in range(1, 5)]
     load += [add_item(ptrH, item(i, fH)) for i in range(1, 5)]
     load += [add_item(held, 0) for _ in range(4)] + [add_item(strumUntil, -99999) for _ in range(8)]
@@ -1674,6 +1677,20 @@ def build_project(mod, songs, week_info, opts):
     jg.add(when_received("start", loop_until(~running(), [
         change_var(camX, (V(camTX) - V(camX)) * 0.1),
         change_var(camY, (V(camTY) - V(camY)) * 0.1)], every=0.033)))
+
+    # pre-carregamento: cada objeto com varios looks passa por todos eles (oculto).
+    # O Catroid so decodifica o PNG e cria a textura quando o look e usado pela
+    # primeira vez; assim isso acontece na tela "Carregando tudo...".
+    npre = 0
+    for sp in proj.sprites:
+        if len(sp.looks) > 1:
+            pi = sp.local_var("preIndice")
+            sp.add(when_received("preparar", set_var(pi, 1),
+                                 repeat(len(sp.looks), [set_look_index(V(pi)), change_var(pi, 1)]),
+                                 set_look_index(1)))
+            npre += len(sp.looks)
+    R.add("DESEMPENHO", "Carregamento inicial: chart da 1a musica decodificado e %d looks pre-carregados "
+          "antes do menu (BroadcastWait)" % npre)
 
     return dict(proj=proj, ui=ui, zoom=zoom, bf=bf, dad=dad, gf=gf, chart_data=chart_data,
                 sounds=sounds, title=title, P_tap=P_tap, P_hold=P_hold, menu=menu, lane_x=lane_x,
@@ -1785,6 +1802,68 @@ def build_minimal(path):
     return problems, cc.validate_xml(xml)
 
 
+def build_diagnostic(path, ui_font=None):
+    """Mede a velocidade do Pocket Code no aparelho, sem nada do jogo.
+    - 'Lacos/s': voltas por segundo de um laco com brick visual (o Catroid limita
+      a 50/s); em aparelho normal fica perto de 50. Perto de 1 = o app/aparelho
+      esta lento mesmo sem carga.
+    - 'Acts/s': quantas vezes por segundo o palco executa os scripts.
+    - A barra branca mostra Lacos/s sem depender de texto (moldura = 50/s).
+    - Tocar na seta esconde/mostra os textos (o ShowText recria uma textura a cada
+      quadro: se o numero da barra subir sem textos, o texto e o gargalo)."""
+    V = var
+    p = Project("FNF_Diagnostico", scene_name="FNF")
+    bgs = p.sprite("Fundo")
+    bgs.look("preto", "preto.png")
+    p.add_image("preto.png", png_bytes(Image.new("RGBA", (32, 18), (0, 0, 0, 255))))
+    bgs.add(when_start(place_at(0, 0), set_size(4000)))
+    voltas, acts = p.global_var("voltas"), p.global_var("acts")
+    t1, t2, t3 = p.global_var("lacosPorSegundo"), p.global_var("actsPorSegundo"), p.global_var("dica")
+    textos = p.global_var("textosVisiveis")
+    seta = p.sprite("Seta")
+    seta.look("seta", "seta.png")
+    p.add_image("seta.png", png_bytes(draw_arrow(112, NOTE_COLORS[2] + (255,), direction=2)))
+    seta.add(when_start(set_var(voltas, 0), place_at(-400, 0),
+                        forever([set_y(fn("SIN", sensor("TIMER") * 180) * 200), change_var(voltas, 1)])),
+             when_tapped(set_var(textos, 1 - V(textos)), broadcast("textos")))
+    cont = p.sprite("ContadorActs")
+    cont.look("vazio", "vazio.png")
+    p.add_image("vazio.png", png_bytes(Image.new("RGBA", (2, 2), (0, 0, 0, 0))))
+    cont.add(when_start(hide(), set_var(acts, 0), forever([change_var(acts, 1)])))
+    moldura = p.sprite("Moldura")
+    fr = Image.new("RGBA", (500, 40), (0, 0, 0, 0))
+    ImageDraw.Draw(fr).rectangle((0, 0, 499, 39), outline=(255, 255, 255, 255), width=3)
+    moldura.look("moldura", "moldura.png")
+    p.add_image("moldura.png", png_bytes(fr))
+    moldura.add(when_start(place_at(150, -250)))
+    barra = p.sprite("Barra")
+    barra.look("barra", "barra.png")
+    p.add_image("barra.png", png_bytes(Image.new("RGBA", (500, 30), (255, 255, 255, 255))))
+    med = p.sprite("Medidor")
+    med.look("vazio", "vazio2.png")
+    p.add_image("vazio2.png", png_bytes(Image.new("RGBA", (2, 2), (0, 0, 0, 0))))
+    barra.add(when_start(place_at(150, -250), set_size(0)))
+    med.add(when_start(
+        hide(), set_var(textos, 1), set_var(t3, "toque na seta: esconder/mostrar textos"),
+        show_text(t1, 150, 150, 120, "#FFFFFF"), show_text(t2, 150, 50, 120, "#FFFFFF"),
+        show_text(t3, 150, -150, 60, "#AAAAAA"),
+        forever([wait(1),
+                 set_var(t1, join("Lacos/s: ", V(voltas), " (normal: ~50)")),
+                 set_var(t2, join("Acts/s: ", V(acts))),
+                 broadcast_wait("medida"),
+                 set_var(voltas, 0), set_var(acts, 0)])))
+    barra.add(when_received("medida", set_x(150 - 250 + fmin(V(voltas), 50) * 5),
+                            set_size(fmin(V(voltas), 50) * 2)))
+    med.add(when_received("textos", if_(V(textos).eq(1),
+                                         [show_text(t1, 150, 150, 120, "#FFFFFF"),
+                                          show_text(t2, 150, 50, 120, "#FFFFFF"),
+                                          show_text(t3, 150, -150, 60, "#AAAAAA")],
+                                         [hide_text(t1), hide_text(t2), hide_text(t3)])))
+    problems = p.check()
+    xml = p.save(path)
+    return problems, cc.validate_xml(xml)
+
+
 def main(argv=None):
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("mod", help="pasta ou .zip do mod de FNF")
@@ -1808,6 +1887,10 @@ def main(argv=None):
     report_path = opts.report or os.path.join(out_dir, "conversion_report.txt")
 
     if opts.minimal:
+        dp = os.path.join(out_dir, "FNF_Diagnostico.catrobat")
+        problems, (nref, errs) = build_diagnostic(dp)
+        R.add("VALIDACAO", "Projeto de diagnostico %s: problemas=%s, referencias=%d, erros=%s"
+              % (os.path.basename(dp), problems or "nenhum", nref, errs or "nenhum"))
         mp = os.path.join(out_dir, "FNF_Minimo.catrobat")
         problems, (nref, errs) = build_minimal(mp)
         R.add("VALIDACAO", "Projeto minimo %s: problemas=%s, referencias=%d, erros=%s"
@@ -1915,10 +1998,11 @@ def run_simulations(path, song):
         if "erro" in r:
             R.add("VALIDACAO", "Simulacao '%s': FALHOU - %s" % (mode, r["erro"]))
             continue
-        line = ("Simulacao '%s' (%s): carregamento %.1f s a 12 acts/quadro; %.1f s de jogo; estado final %s; "
+        line = ("Simulacao '%s' (%s): carregamento inicial ate o menu %.1f s e apos JOGAR %.1f s "
+                "(12 acts/quadro); %.1f s de jogo; estado final %s; "
                 "pontos %d; erros %d; combo max %d; notas do jogador julgadas %d; notas do oponente tocadas %d; "
                 "clones criados %d; HUD: %r" % (
-                    mode, desc, r["carregamento_s"], r["tempo_simulado_s"],
+                    mode, desc, r["preparo_inicial_s"], r["carregamento_s"], r["tempo_simulado_s"],
                     {1.0: "jogando", 2.0: "GAME OVER", 3.0: "RESULTADOS"}.get(r["estado_final"], r["estado_final"]),
                     r["pontos"], r["erros"], r["combo_max"], r["notas_jogadas"], r["ponteiro_oponente"] - 1,
                     r["clones_max"], r["texto_hud"]))
@@ -1939,7 +2023,10 @@ def run_simulations(path, song):
     import catrobat_sim as cs
     out_dir = os.path.dirname(os.path.abspath(path))
     sim = cs.Sim(proj, acts_per_frame=12)
-    sim.run_until(0.5)
+    sim.run_until(0.3)
+    while sim.gvars["estado"] != 0.0 and sim.time < 120:
+        sim.step_frame()
+    sim.run_until(sim.time + 0.3)
     cs.render(sim, os.path.join(out_dir, "preview_menu.png"))
     sim.tap(420, -310)
     sim.run_until(0.7)
@@ -1968,9 +2055,11 @@ Implementado com bricks nativos do Pocket Code (nenhum HTML/APK/engine externo):
  * Menu inicial com fundo/titulo da week, selecao de musica (< >), JOGAR, rolagem
    cima/baixo, offset de audio (-/+ 10 ms) e BOTPLAY; opcoes salvas no aparelho
    (Write/ReadVariableOnDevice).
- * Carregamento do chart: dados compactados em texto e decodificados com SUBTEXT
-   para listas (notaTempo/notaLane/notaProxima, longaTempo/...); reiniciar a mesma
-   musica nao decodifica de novo.
+ * Carregamento inicial ("Carregando tudo...", antes do menu): o chart e
+   decodificado (texto compacto -> listas via SUBTEXT) e todos os looks de todos
+   os objetos sao percorridos para o Catroid ler os PNG e criar as texturas
+   (BroadcastWait espera tudo terminar). JOGAR comeca na hora; so trocar de
+   musica decodifica outro chart.
  * Relogio da musica: posicao = TIMER*1000 + base - offset. No instante em que o
    MP3 comeca (brick logo apos o PlaySoundBrick) um unico SetVariable faz a
    posicao valer 0 (sem salto); antes disso, contagem de 5 batidas.
