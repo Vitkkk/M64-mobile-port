@@ -120,6 +120,11 @@ botão Jogar avisa que falta o motor. O CI publica o APK completo como artefato
    horizon-android/tools/prepare-resources.sh --server-jar ~/Downloads/server.jar
    # -> horizon-resources.zip (centenas de MB; é seu, não compartilhe)
    ```
+   No **Windows**, sem WSL: dois cliques em `horizon-android\tools\prepare-resources.bat`
+   (ele pede o `server.jar`), ou no CMD:
+   ```bat
+   horizon-android\tools\prepare-resources.bat C:\Users\voce\Downloads\server.jar
+   ```
 2. No celular: **Ajustes → Recursos do jogo → Importar .zip**.
 3. **Conta → Entrar com Microsoft** (ou, para desenvolvimento, desligue a verificação
    em Ajustes → Conta Microsoft e use um nome offline).

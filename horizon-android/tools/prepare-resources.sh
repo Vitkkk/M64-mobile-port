@@ -38,14 +38,15 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 PREPARED="$WORK/preparado"
 
-ARGS=(--prepare --output "$PREPARED" --server-jar "$SERVER_JAR" --complete)
+# --root: o horizon-prepare lê o research-lock.json da raiz do Horizon (os hashes fixados).
+ARGS=(--root "$HZ" --prepare --output "$PREPARED" --server-jar "$SERVER_JAR" --complete)
 [[ -n "$MC_DIR" ]] && ARGS+=(--minecraft-dir "$MC_DIR")
 
 echo "== Compilando o horizon-prepare"
 cargo build --release --manifest-path "$HZ/Cargo.toml" -p horizon-prepare
 echo "== Preparando (alguns minutos; roda o gerador de dados do vanilla com o seu jar)"
 "$HZ/target/release/horizon-prepare" "${ARGS[@]}"
-"$HZ/target/release/horizon-prepare" --check --output "$PREPARED"
+"$HZ/target/release/horizon-prepare" --root "$HZ" --check --output "$PREPARED"
 
 echo "== Compactando"
 rm -f "$OUT"
