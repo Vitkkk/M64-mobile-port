@@ -1,5 +1,12 @@
 # M64 Mobile Port
 
+> **Novo neste repositório:** [`horizon-android/`](horizon-android/README.md), o
+> **Zenith Launcher**: um launcher Android no estilo do PojavLauncher para o
+> [Horizon](https://github.com/horizon-rust/horizon), a reescrita open source em
+> Rust do Minecraft: Java Edition. Tem instâncias, contas Microsoft, skins, mods,
+> controles de toque editáveis, ajustes de API gráfica e desempenho, e uma API de
+> controle. Ele é independente do port de SM64 descrito abaixo.
+
 Port nativo de **Super Mario 64** para celular (Android), feito por
 **recompilação** e não por emulação, e **sem distribuir nada da Nintendo**.
 
