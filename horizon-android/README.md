@@ -120,7 +120,11 @@ botão Jogar avisa que falta o motor. O CI publica o APK completo como artefato
    horizon-android/tools/prepare-resources.sh --server-jar ~/Downloads/server.jar
    # -> horizon-resources.zip (centenas de MB; é seu, não compartilhe)
    ```
-   No **Windows**, sem WSL: dois cliques em `horizon-android\tools\prepare-resources.bat`
+   No **Windows**, o mais fácil: baixe o `server.jar` 26.3 para a pasta Downloads e dê dois
+   cliques em `horizon-android\tools\PREPARAR-RECURSOS.bat`. Ele instala pelo winget o que
+   faltar (Rust, Visual Studio Build Tools com C++, Java 25 e Git), acha o `server.jar` e
+   deixa o `horizon-resources.zip` na Área de Trabalho.
+   Se já tiver tudo instalado: dois cliques em `horizon-android\tools\prepare-resources.bat`
    (ele pede o `server.jar`), ou no CMD:
    ```bat
    horizon-android\tools\prepare-resources.bat C:\Users\voce\Downloads\server.jar
