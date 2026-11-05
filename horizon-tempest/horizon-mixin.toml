@@ -5,5 +5,9 @@
 id = "tempest"
 version = "0.1.0"
 
+# The Horizon commit Tempest was checked on (tools/check-horizon.sh).
+[compatibility]
+horizon_revision = "d158e447362364d6dd3de4e45dcf2bbb542c131e"
+
 [api]
 path = "api"

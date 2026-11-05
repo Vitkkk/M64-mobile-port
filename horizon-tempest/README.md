@@ -86,6 +86,11 @@ seção "Trait mods"). Ele precisa de um Horizon recente (que tenha os ganchos
 `world_primitives`, `camera_shake`, `shader_params`, `compute_fog_color` e
 `render_fog` no `mod_api`).
 
+O arquivo pronto é `dist/tempest-0.1.0.hnmod`, fixado no commit
+`d158e4473623` do Horizon (o mesmo em que foi checado) e aceito pelo
+verificador oficial (`cargo horizon-mod check`). Instale-o pela tela de mods
+do launcher, ou compile a pasta direto:
+
 ```sh
 horizon-launcher native-build caminho/para/horizon-tempest --instance <sua instância> --trust-native-code
 ```
@@ -168,6 +173,7 @@ horizon-tempest/
   devstub/horizon-client/ # stub da parte do mod_api que o Tempest usa
   tools/check.sh          # cargo test / clippy contra o stub
   tools/check-horizon.sh  # cargo check / clippy contra um clone do Horizon real
+  tools/pack.py           # empacota o .hnmod em dist/
 ```
 
 Duas checagens:

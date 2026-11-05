@@ -8,4 +8,4 @@ description = "Tempest: storms, tornadoes, squall lines, hurricanes and radar fo
 [dependencies]
 # The launcher points this at the Horizon source it builds the game from.
 # Tempest needs no other crate.
-horizon-client = { git = "https://github.com/horizon-rust/horizon" }
+horizon-client = { git = "https://github.com/horizon-rust/horizon", rev = "d158e447362364d6dd3de4e45dcf2bbb542c131e" }
