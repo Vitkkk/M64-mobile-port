@@ -1,0 +1,536 @@
+schema = 1
+id = "cinematico"
+name = "Cinematico"
+version = "1.0.0"
+api = "0.1"
+description = "Visual cinematografico e realista: ceu atmosferico, sol redondo, sombras suaves, agua com reflexo, refracao e causticas, folhas ao vento, bloom, raios de sol e color grading de filme."
+authors = ["vitkkk"]
+license = "MIT"
+shared = ["common.wgsl"]
+
+# ---------------------------------------------------------------- estagios
+
+[sky]
+file = "sky.wgsl"
+name = "Atmosfera"
+sun = false        # o pack desenha o proprio sol (redondo, com halo); a lua continua a do jogo
+
+[material]
+file = "material.wgsl"
+name = "Terreno"
+fog = false        # o pack aplica a propria neblina atmosferica
+
+[vertex]
+file = "vertex.wgsl"
+
+[weather]
+file = "weather.wgsl"
+
+[shadow]
+resolution = 2048
+distance = 128.0
+option = "shadows"
+resolution_option = "shadow_resolution"
+distance_option = "shadow_distance"
+
+[reflection]
+option = "water_reflections"
+
+[[post]]
+file = "post/bloom_prefilter.wgsl"
+name = "Bloom (brilho)"
+output = "bloom_half"
+scale = 0.5
+
+[[post]]
+file = "post/bloom_wide.wgsl"
+name = "Bloom (halo largo)"
+output = "bloom_wide"
+scale = 0.25
+
+[[post]]
+file = "post/light_shafts.wgsl"
+name = "Raios de sol"
+output = "shafts"
+scale = 0.5
+
+[[post]]
+file = "post/lens.wgsl"
+name = "Lente (foco e movimento)"
+
+[[post]]
+file = "post/color.wgsl"
+name = "Cor de cinema"
+
+[[post]]
+file = "post/final.wgsl"
+name = "Acabamento (FXAA, grao, vinheta)"
+
+[budget]
+gpu_ms = 4.0
+
+# ---------------------------------------------------------------- materiais (ids por sprite)
+
+[[materials]]                   # folhas: balancam e deixam a luz atravessar
+id = 1
+sprites = ["block/*_leaves", "block/*_leaves_*"]
+
+[[materials]]                   # plantas baixas: presas no chao, a ponta balanca
+id = 2
+sprites = [
+  "block/short_grass", "block/fern", "block/dead_bush", "block/bush", "block/firefly_bush",
+  "block/short_dry_grass", "block/tall_dry_grass",
+  "block/dandelion", "block/poppy", "block/blue_orchid", "block/allium", "block/azure_bluet",
+  "block/*_tulip", "block/oxeye_daisy", "block/cornflower", "block/lily_of_the_valley",
+  "block/torchflower", "block/closed_eyeblossom", "block/open_eyeblossom", "block/wither_rose",
+  "block/wheat_stage*", "block/carrots_stage*", "block/potatoes_stage*", "block/beetroots_stage*",
+  "block/sweet_berry_bush_stage*", "block/*_sapling",
+  "block/seagrass", "block/kelp", "block/kelp_plant",
+]
+
+[[materials]]                   # metade de baixo das plantas altas
+id = 5
+sprites = [
+  "block/tall_grass_bottom", "block/large_fern_bottom", "block/lilac_bottom",
+  "block/rose_bush_bottom", "block/peony_bottom", "block/sunflower_bottom",
+  "block/tall_seagrass_bottom",
+]
+
+[[materials]]                   # metade de cima das plantas altas
+id = 3
+sprites = [
+  "block/tall_grass_top", "block/large_fern_top", "block/lilac_top", "block/rose_bush_top",
+  "block/peony_top", "block/sunflower_top", "block/tall_seagrass_top",
+]
+
+[[materials]]                   # trepadeiras
+id = 4
+sprites = ["block/vine", "block/*_vines", "block/*_vines_plant", "block/hanging_roots", "block/glow_lichen"]
+
+[[materials]]
+id = 20
+sprites = ["block/water_still", "block/water_flow", "block/water_overlay"]
+
+[[materials]]
+id = 21
+sprites = ["block/lava_still", "block/lava_flow"]
+
+[[materials]]                   # vidro
+id = 30
+sprites = ["block/glass", "block/glass_pane_top", "block/*_stained_glass", "block/*_stained_glass_pane_top", "block/tinted_glass"]
+
+[[materials]]                   # gelo
+id = 31
+sprites = ["block/ice", "block/packed_ice", "block/blue_ice", "block/frosted_ice_*"]
+
+[[materials]]                   # metais e gemas: brilho especular forte
+id = 40
+sprites = [
+  "block/iron_block", "block/gold_block", "block/diamond_block", "block/emerald_block",
+  "block/netherite_block", "block/copper_block", "block/cut_copper", "block/waxed_copper_block",
+  "block/raw_gold_block", "block/lapis_block", "block/amethyst_block", "block/lightning_rod*",
+  "block/anvil*", "block/iron_bars", "block/chain", "block/iron_chain", "block/lantern", "block/soul_lantern",
+]
+
+[[materials]]                   # superficies polidas: brilho especular leve
+id = 41
+sprites = [
+  "block/polished_*", "block/smooth_*", "block/quartz_block*", "block/*_glazed_terracotta",
+  "block/*_concrete", "block/obsidian", "block/crying_obsidian", "block/prismarine_bricks",
+  "block/dark_prismarine", "block/calcite", "block/*_planks",
+]
+
+# ---------------------------------------------------------------- luz colorida dos blocos
+
+[[lights]]
+color = [1.0, 0.55, 0.22]
+blocks = ["torch", "wall_torch", "lantern", "campfire", "fire", "jack_o_lantern", "*candle*", "furnace", "smoker", "blast_furnace"]
+
+[[lights]]
+color = [0.25, 0.75, 1.0]
+blocks = ["soul_torch", "soul_wall_torch", "soul_lantern", "soul_campfire", "soul_fire"]
+
+[[lights]]
+color = [0.5, 1.0, 0.6]
+blocks = ["copper_torch", "copper_wall_torch", "copper_lantern", "*copper_lantern"]
+
+[[lights]]
+color = [1.0, 0.15, 0.08]
+blocks = ["redstone_torch", "redstone_wall_torch", "redstone_lamp", "redstone_ore", "deepslate_redstone_ore"]
+
+[[lights]]
+color = [1.0, 0.75, 0.42]
+blocks = ["glowstone", "shroomlight", "ochre_froglight"]
+
+[[lights]]
+color = [0.6, 1.0, 0.6]
+blocks = ["verdant_froglight"]
+
+[[lights]]
+color = [1.0, 0.65, 1.0]
+blocks = ["pearlescent_froglight"]
+
+[[lights]]
+color = [0.75, 0.92, 1.0]
+blocks = ["sea_lantern", "beacon", "conduit", "end_rod", "sea_pickle", "glow_lichen"]
+
+[[lights]]
+color = [1.0, 0.38, 0.08]
+blocks = ["lava", "magma_block", "lava_cauldron"]
+
+[[lights]]
+color = [0.7, 0.35, 1.0]
+blocks = ["amethyst_cluster", "*_amethyst_bud", "crying_obsidian", "respawn_anchor", "nether_portal", "end_gateway", "end_portal", "ender_chest", "enchanting_table"]
+
+[[particle_lights]]
+particles = ["firefly"]
+color = [0.75, 0.95, 0.35]
+reach = 3.0
+
+# ---------------------------------------------------------------- opcoes
+
+[[options]]
+id = "quality"
+name = "Qualidade"
+description = "Leve para celular; Ultra para PC forte. Muda o numero de amostras das sombras, dos raios de sol e do desfoque."
+type = "choice"
+values = ["Leve (celular)", "Medio", "Alto", "Ultra"]
+default = "Alto"
+
+[[options]]
+id = "shadows"
+name = "Sombras"
+description = "Sombras reais do sol e da lua. Desligar ganha muito desempenho."
+type = "bool"
+default = true
+
+[[options]]
+id = "shadow_resolution"
+name = "Resolucao das sombras"
+type = "choice"
+values = ["1024", "2048", "3072", "4096"]
+default = "2048"
+
+[[options]]
+id = "shadow_distance"
+name = "Distancia das sombras"
+type = "choice"
+values = ["64", "96", "128", "192", "256"]
+default = "128"
+
+[[options]]
+id = "shadow_softness"
+name = "Suavidade das sombras"
+description = "O tamanho da penumbra."
+type = "float"
+default = 1.0
+min = 0.0
+max = 3.0
+step = 0.1
+
+[[options]]
+id = "sun_strength"
+name = "Forca do sol"
+type = "float"
+default = 1.0
+min = 0.3
+max = 2.0
+step = 0.05
+
+[[options]]
+id = "ambient_strength"
+name = "Luz ambiente (ceu)"
+description = "Quanto o ceu ilumina as sombras."
+type = "float"
+default = 1.0
+min = 0.2
+max = 2.0
+step = 0.05
+
+[[options]]
+id = "torch_strength"
+name = "Luz de tochas"
+type = "float"
+default = 1.0
+min = 0.2
+max = 3.0
+step = 0.05
+
+[[options]]
+id = "colored_lights"
+name = "Luz colorida"
+description = "Tochas de alma azuis, redstone vermelha, lava laranja..."
+type = "bool"
+default = true
+
+[[options]]
+id = "foliage_glow"
+name = "Luz atraves das folhas"
+description = "Espalhamento subsuperficial: as folhas brilham contra o sol."
+type = "float"
+default = 0.6
+min = 0.0
+max = 1.0
+step = 0.05
+
+[[options]]
+id = "auto_bump"
+name = "Relevo nas texturas"
+description = "Gera relevo a partir da textura quando nao ha pack PBR (LabPBR). Com pack PBR, usa os mapas dele."
+type = "bool"
+default = true
+
+[[options]]
+id = "wet_reflections"
+name = "Chao molhado na chuva"
+description = "Pocas e brilho molhado quando chove."
+type = "bool"
+default = true
+
+[[options]]
+id = "water_reflections"
+name = "Reflexos na agua"
+description = "Espelho real do mundo na agua. Pesado: desenha o mundo uma segunda vez em meia resolucao."
+type = "bool"
+default = true
+
+[[options]]
+id = "water_waves"
+name = "Ondas"
+type = "float"
+default = 1.0
+min = 0.0
+max = 2.0
+step = 0.05
+
+[[options]]
+id = "water_clarity"
+name = "Transparencia da agua"
+type = "float"
+default = 1.0
+min = 0.2
+max = 3.0
+step = 0.05
+
+[[options]]
+id = "caustics"
+name = "Causticas"
+description = "O desenho da luz do sol no fundo da agua."
+type = "bool"
+default = true
+
+[[options]]
+id = "waving"
+name = "Vento nas plantas"
+type = "bool"
+default = true
+
+[[options]]
+id = "wind_strength"
+name = "Forca do vento"
+type = "float"
+default = 1.0
+min = 0.0
+max = 2.5
+step = 0.05
+
+[[options]]
+id = "haze"
+name = "Neblina atmosferica"
+description = "A perspectiva aerea: montanhas distantes azuladas, nevoa ao amanhecer."
+type = "float"
+default = 1.0
+min = 0.0
+max = 3.0
+step = 0.05
+
+[[options]]
+id = "sun_size"
+name = "Tamanho do sol"
+type = "float"
+default = 1.0
+min = 0.3
+max = 3.0
+step = 0.05
+
+[[options]]
+id = "exposure"
+name = "Exposicao"
+type = "float"
+default = 1.0
+min = 0.3
+max = 3.0
+step = 0.05
+
+[[options]]
+id = "auto_exposure"
+name = "Exposicao automatica"
+description = "Os olhos se adaptam: cavernas e noites ficam mais visiveis, como numa camera."
+type = "bool"
+default = true
+
+[[options]]
+id = "bloom"
+name = "Bloom"
+type = "float"
+default = 0.5
+min = 0.0
+max = 1.5
+step = 0.05
+
+[[options]]
+id = "light_shafts"
+name = "Raios de sol"
+description = "Raios volumetricos quando o sol passa por arvores e montanhas."
+type = "float"
+default = 0.7
+min = 0.0
+max = 2.0
+step = 0.05
+
+[[options]]
+id = "dof"
+name = "Profundidade de campo"
+description = "Desfoca o que esta longe do ponto que voce olha, como uma lente de cinema."
+type = "bool"
+default = false
+
+[[options]]
+id = "dof_strength"
+name = "Forca do desfoque"
+type = "float"
+default = 1.0
+min = 0.2
+max = 3.0
+step = 0.1
+
+[[options]]
+id = "motion_blur"
+name = "Desfoque de movimento"
+type = "bool"
+default = false
+
+[[options]]
+id = "motion_blur_strength"
+name = "Forca do movimento"
+type = "float"
+default = 0.5
+min = 0.1
+max = 1.5
+step = 0.05
+
+[[options]]
+id = "color_style"
+name = "Estilo de cor"
+type = "choice"
+values = ["Natural", "Filme quente", "Teal e laranja", "Frio nordico", "Noir"]
+default = "Filme quente"
+
+[[options]]
+id = "saturation"
+name = "Saturacao"
+type = "float"
+default = 1.05
+min = 0.0
+max = 2.0
+step = 0.05
+
+[[options]]
+id = "contrast"
+name = "Contraste"
+type = "float"
+default = 1.1
+min = 0.5
+max = 1.8
+step = 0.05
+
+[[options]]
+id = "vignette"
+name = "Vinheta"
+type = "float"
+default = 0.35
+min = 0.0
+max = 1.0
+step = 0.05
+
+[[options]]
+id = "film_grain"
+name = "Grao de filme"
+type = "float"
+default = 0.2
+min = 0.0
+max = 1.0
+step = 0.05
+
+[[options]]
+id = "chromatic"
+name = "Aberracao cromatica"
+type = "float"
+default = 0.15
+min = 0.0
+max = 1.0
+step = 0.05
+
+[[options]]
+id = "letterbox"
+name = "Barras de cinema (2.39:1)"
+type = "bool"
+default = false
+
+[[options]]
+id = "fxaa"
+name = "Anti-aliasing (FXAA)"
+type = "bool"
+default = true
+
+[[options]]
+id = "sharpen"
+name = "Nitidez"
+type = "float"
+default = 0.25
+min = 0.0
+max = 1.0
+step = 0.05
+
+# ---------------------------------------------------------------- paginas de opcoes
+
+[[pages]]
+id = "main"
+name = "Cinematico"
+items = ["quality", "color_style", "page:light", "page:water", "page:sky", "page:camera", "page:color", "page:performance"]
+
+[[pages]]
+id = "light"
+name = "Luz e sombra"
+description = "Sol, ceu, tochas e sombras."
+items = ["sun_strength", "ambient_strength", "torch_strength", "colored_lights", "shadow_softness", "foliage_glow", "auto_bump", "wet_reflections"]
+
+[[pages]]
+id = "water"
+name = "Agua"
+description = "Reflexos, ondas, transparencia e causticas."
+items = ["water_reflections", "caustics", "water_waves", "water_clarity"]
+
+[[pages]]
+id = "sky"
+name = "Ceu e vento"
+description = "Sol, neblina e plantas ao vento."
+items = ["sun_size", "haze", "waving", "wind_strength"]
+
+[[pages]]
+id = "camera"
+name = "Camera"
+description = "Exposicao, bloom, raios de sol, foco e movimento."
+items = ["exposure", "auto_exposure", "bloom", "light_shafts", "dof", "dof_strength", "motion_blur", "motion_blur_strength"]
+
+[[pages]]
+id = "color"
+name = "Cor e filme"
+description = "Grading, grao, vinheta e barras de cinema."
+items = ["saturation", "contrast", "vignette", "film_grain", "chromatic", "sharpen", "letterbox", "fxaa"]
+
+[[pages]]
+id = "performance"
+name = "Desempenho"
+description = "O que mais pesa: sombras e reflexos."
+items = ["shadows", "shadow_resolution", "shadow_distance", ""]
