@@ -1,0 +1,11 @@
+# Runs the built mod component in wasmtime with the fuel limit Horizon's
+# Android ports give a tick (50 million instructions), through a long EF5,
+# and reports the worst tick. A mod that runs out is turned off by the game.
+[package]
+name = "tempest-fuelcheck"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+wasmtime = { version = "36", default-features = false, features = ["component-model", "cranelift", "runtime"] }

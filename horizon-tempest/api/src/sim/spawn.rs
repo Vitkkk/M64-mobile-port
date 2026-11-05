@@ -10,6 +10,9 @@ use super::climate::{Climate, Env};
 use super::rng::{hash, unit, Rng};
 use super::storm::{smoothstep, StormDef, StormKind, TornadoDef};
 
+/// Number of storm kinds.
+pub const KINDS: usize = 5;
+
 /// Length of a spawn slot, ticks (2 minutes).
 pub const SLOT: i64 = 2400;
 
@@ -75,10 +78,18 @@ impl Spawner {
     /// Appends to `out` every natural storm alive at tick `t` whose effects can
     /// reach within `radius` blocks of (x, z).
     pub fn storms_near(&self, x: f64, z: f64, t: i64, radius: f64, out: &mut Vec<StormDef>) {
+        for k in 0..KINDS {
+            self.storms_near_kind(k, x, z, t, radius, out);
+        }
+    }
+
+    /// [`storms_near`](Self::storms_near) for one kind (`StormKind as usize`),
+    /// so the work can be spread over several ticks.
+    pub fn storms_near_kind(&self, kind: usize, x: f64, z: f64, t: i64, radius: f64, out: &mut Vec<StormDef>) {
         let tf = t as f64;
-        for rule in RULES.iter() {
+        if let Some(rule) = RULES.iter().find(|r| r.kind as usize == kind) {
             if !self.enabled[rule.kind as usize] || self.rate <= 0.0 {
-                continue;
+                return;
             }
             let p_max = (rule.base * self.rate).min(1.0);
             let travel = rule.speed.1 * rule.life.1;

@@ -91,8 +91,31 @@ pub struct Tempest {
     species: Vec<u8>,
     /// Damage step each tile of the path has had, and the edits still to run.
     tiles: HashMap<(i32, i32), u8>,
-    backlog: VecDeque<String>,
+    backlog: VecDeque<TileJob>,
+    /// The radar sweep in progress: rows done so far go here, a few a tick.
+    sweep_img: Vec<u32>,
+    sweep_row: usize,
+    /// The natural storm list being rebuilt, one storm kind a tick.
+    refresh_kind: Option<usize>,
+    refresh_buf: Vec<StormDef>,
 }
+
+/// Natural storms kept: the nearest ones (every loop over storms is bounded).
+const MAX_NATURAL: usize = 24;
+
+/// One whole-tile edit still to run, kept small until its command is written.
+#[derive(Clone, Copy, Debug)]
+struct TileJob {
+    cx: i32,
+    cz: i32,
+    op: damage::TileOp,
+}
+
+/// The game runs a mod's tick on a fuel budget (50 million instructions on
+/// Horizon's Android ports) and turns the mod off past it: each tick does a
+/// bounded amount of work.
+const TILES_PER_PASS: usize = 48;
+const BACKLOG_MAX: usize = 1500;
 
 const T_WIND: usize = 0;
 const T_ROAR: usize = 1;
@@ -140,6 +163,10 @@ impl Tempest {
             species: Vec::new(),
             tiles: HashMap::new(),
             backlog: VecDeque::new(),
+            sweep_img: Vec::new(),
+            sweep_row: 0,
+            refresh_kind: None,
+            refresh_buf: Vec::new(),
             timers: [0; 6],
         };
         t.apply_cfg();
@@ -192,19 +219,35 @@ impl Tempest {
         let tf = t as f64;
 
         let moved = (self.anchor[0] - p.pos[0]).hypot(self.anchor[1] - p.pos[2]);
-        if t.saturating_sub(self.refreshed) >= 100 || t < self.refreshed || moved > 1000.0 {
-            let radius = self.cfg.quality.budget().draw_distance.max(self.cfg.radar_range * 1.5);
-            self.natural.clear();
-            self.spawner.storms_near(p.pos[0], p.pos[2], t, radius, &mut self.natural);
-            let sup = &self.suppressed;
-            self.natural.retain(|s| !sup.contains(&s.id));
-            let before = self.manual.len();
-            self.manual.retain(|s| s.t0 > t || s.alive(tf));
-            if before != self.manual.len() {
-                self.save_all(io);
-            }
+        if self.refresh_kind.is_none() && (t.saturating_sub(self.refreshed) >= 100 || t < self.refreshed || moved > 1000.0) {
+            self.refresh_kind = Some(0);
+            self.refresh_buf.clear();
             self.refreshed = t;
             self.anchor = [p.pos[0], p.pos[2]];
+        }
+        if let Some(kind) = self.refresh_kind {
+            let radius = self.cfg.quality.budget().draw_distance.max(self.cfg.radar_range * 1.5);
+            self.spawner.storms_near_kind(kind, p.pos[0], p.pos[2], t, radius, &mut self.refresh_buf);
+            if kind + 1 < crate::sim::spawn::KINDS {
+                self.refresh_kind = Some(kind + 1);
+            } else {
+                self.refresh_kind = None;
+                let sup = &self.suppressed;
+                self.refresh_buf.retain(|s| !sup.contains(&s.id));
+                let here = [p.pos[0], p.pos[2]];
+                let dist = |s: &StormDef| {
+                    let c = s.position(tf);
+                    (c[0] - here[0]).hypot(c[1] - here[1]) - s.reach()
+                };
+                self.refresh_buf.sort_by(|a, b| dist(a).total_cmp(&dist(b)));
+                self.refresh_buf.truncate(MAX_NATURAL);
+                std::mem::swap(&mut self.natural, &mut self.refresh_buf);
+                let before = self.manual.len();
+                self.manual.retain(|s| s.t0 > t || s.alive(tf));
+                if before != self.manual.len() {
+                    self.save_all(io);
+                }
+            }
         }
         self.storms.clear();
         self.storms.extend(self.natural.iter().chain(&self.manual).filter(|s| s.alive(tf)).copied());
@@ -237,15 +280,16 @@ impl Tempest {
         self.sounds();
         // Damage still owed, in what's left of this tick's budget.
         while self.queue.len() < self.budget() {
-            let Some(cmd) = self.backlog.pop_front() else { break };
-            self.queue.push(cmd);
+            let Some(job) = self.backlog.pop_front() else { break };
+            let (lo, hi) = job.op.band.range();
+            self.queue.push(cmds::tile_fill(job.cx, job.cz, damage::TILE_HALF, lo, hi, damage::PALETTE[job.op.block as usize], damage::FILTERS[job.op.filter as usize]));
         }
         if !self.queue.is_empty() {
             let q = std::mem::take(&mut self.queue);
             self.commands_sent += q.len() as u64;
             io.run(&q);
         }
-        if self.cfg.radar && (t.saturating_sub(self.radar_t) >= self.cfg.quality.budget().radar_refresh as i64 || t < self.radar_t) {
+        if self.cfg.radar && (self.sweep_row > 0 || t.saturating_sub(self.radar_t) >= self.cfg.quality.budget().radar_refresh as i64 || t < self.radar_t) {
             self.sweep();
         }
         if self.ticks % 10 == 0 || self.radar_t == t {
@@ -380,7 +424,7 @@ impl Tempest {
     /// bare, debarked trees and scoured ground. Per-column extras snap some
     /// trunks and dig holes; debris flies off.
     fn damage(&mut self) {
-        if !self.cfg.damage || self.storms.is_empty() || self.backlog.len() > 600 {
+        if !self.cfg.damage || self.storms.is_empty() || self.backlog.len() > BACKLOG_MAX {
             return;
         }
         let p = self.pos;
@@ -406,15 +450,32 @@ impl Tempest {
         }
         let mut ops = Vec::new();
         let mut plan = Vec::new();
+        let mut evaluations = 0;
         for (c, reach, tor) in &areas {
             let (t0, t1) = (damage::tile_of(c[0] - reach, c[1] - reach), damage::tile_of(c[0] + reach, c[1] + reach));
+            // Nearest tiles first; tiles already at the top step are skipped.
+            let mut todo: Vec<(f64, i32, i32)> = Vec::new();
             for tx in t0.0..=t1.0 {
                 for tz in t0.1..=t1.1 {
-                    let (cx, cz) = damage::tile_center((tx, tz));
-                    let (x, z) = (cx as f64 + 0.5, cz as f64 + 0.5);
-                    if (x - c[0]).hypot(z - c[1]) > reach + damage::TILE as f64 {
+                    if self.tiles.get(&(tx, tz)).copied().unwrap_or(0) >= 6 {
                         continue;
                     }
+                    let (cx, cz) = damage::tile_center((tx, tz));
+                    let d = (cx as f64 + 0.5 - c[0]).hypot(cz as f64 + 0.5 - c[1]);
+                    if d <= reach + damage::TILE as f64 {
+                        todo.push((d, tx, tz));
+                    }
+                }
+            }
+            todo.sort_by(|a, b| a.0.total_cmp(&b.0));
+            for (_, tx, tz) in todo {
+                {
+                    if evaluations >= TILES_PER_PASS || self.backlog.len() > BACKLOG_MAX {
+                        break;
+                    }
+                    evaluations += 1;
+                    let (cx, cz) = damage::tile_center((tx, tz));
+                    let (x, z) = (cx as f64 + 0.5, cz as f64 + 0.5);
                     let (w, _) = field::wind_at(&self.storms, &self.tors, self.env.wind, x, z, tf);
                     let tier = damage::tier_of(w[0].hypot(w[1]));
                     let done = self.tiles.get(&(tx, tz)).copied().unwrap_or(0);
@@ -425,8 +486,7 @@ impl Tempest {
                         ops.clear();
                         damage::tile_ops(step, &species, &mut ops);
                         for op in &ops {
-                            let (lo, hi) = op.band.range();
-                            self.backlog.push_back(cmds::tile_fill(cx, cz, damage::TILE_HALF, lo, hi, damage::PALETTE[op.block as usize], damage::FILTERS[op.filter as usize]));
+                            self.backlog.push_back(TileJob { cx, cz, op: *op });
                         }
                     }
                     self.tiles.insert((tx, tz), tier);
@@ -586,14 +646,28 @@ impl Tempest {
         }
     }
 
+    /// Radar rows, a few a tick; the finished image replaces the shown one.
     fn sweep(&mut self) {
         let n = self.cfg.quality.budget().radar_cells;
         let product = if self.cfg.velocity { Product::Velocity } else { Product::Reflectivity };
-        let mut img = std::mem::take(&mut self.radar);
-        radar::image(&self.storms, &self.tors, self.env.wind, [self.pos[0], self.pos[2]], self.cfg.radar_range, n, product, self.t as f64, &mut img);
-        self.radar = img;
-        self.radar_n = n;
-        self.radar_t = self.t;
+        if self.sweep_img.len() != n * n {
+            self.sweep_img = vec![0; n * n];
+            self.sweep_row = 0;
+        }
+        // Rows a tick, fewer when many storms reach the image (the tick's fuel).
+        let storms = self.storms.len().max(1);
+        let per_cell = if product == Product::Velocity { 3 * storms + self.tors.len() } else { storms };
+        let rows = (2400 / (n * per_cell)).clamp(1, 8);
+        let end = (self.sweep_row + rows).min(n);
+        radar::image_rows(&self.storms, &self.tors, self.env.wind, [self.pos[0], self.pos[2]], self.cfg.radar_range, n, product, self.t as f64, self.sweep_row..end, &mut self.sweep_img);
+        self.sweep_row = end;
+        if end >= n {
+            std::mem::swap(&mut self.radar, &mut self.sweep_img);
+            self.sweep_img.clear();
+            self.radar_n = n;
+            self.radar_t = self.t;
+            self.sweep_row = 0;
+        }
     }
 
     /// The radar and readout in the top-right corner; the warning banner.
@@ -726,6 +800,7 @@ impl Tempest {
             }
             Some("clear") => {
                 self.suppressed.extend(self.natural.iter().map(|s| s.id));
+                self.natural.clear();
                 self.manual.clear();
                 self.refreshed = i64::MIN;
                 self.save_all(io);

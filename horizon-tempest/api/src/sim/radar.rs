@@ -89,6 +89,24 @@ pub fn image(
 ) {
     out.clear();
     out.resize(n * n, 0);
+    image_rows(storms, tors, background, site, range, n, product, t, 0..n, out);
+}
+
+/// Fills rows `rows` of an `n` x `n` image already sized `n * n`, so a sweep
+/// can be spread over several ticks.
+#[allow(clippy::too_many_arguments)]
+pub fn image_rows(
+    storms: &[StormDef],
+    tors: &[(usize, TornadoState)],
+    background: [f64; 2],
+    site: [f64; 2],
+    range: f64,
+    n: usize,
+    product: Product,
+    t: f64,
+    rows: std::ops::Range<usize>,
+    out: &mut [u32],
+) {
     let cell = 2.0 * range / n as f64;
     // Only storms that can reach the image.
     let relevant: Vec<StormDef> = storms
@@ -99,10 +117,7 @@ pub fn image(
         })
         .copied()
         .collect();
-    if relevant.is_empty() {
-        return;
-    }
-    for row in 0..n {
+    for row in rows.start..rows.end.min(n) {
         let z = site[1] - range + (row as f64 + 0.5) * cell;
         for col in 0..n {
             let x = site[0] - range + (col as f64 + 0.5) * cell;

@@ -108,7 +108,7 @@ mostra tempestades locais só visuais (`fallback = true`).
 Os ports Android não oficiais do Horizon (ex.: "Horizon Android 0.7.x")
 **não compilam mods nativos** (`.hnmod`): eles rodam só `.hmod` com o mod em
 WebAssembly, numa sandbox (API `horizon:mods` 0.1). Para eles existe uma
-versão própria: **`dist/tempest-mobile-0.3.0.hmod`** (pasta `mobile/`).
+versão própria: **`dist/tempest-mobile-0.3.1.hmod`** (pasta `mobile/`).
 
 Instalar: **Installed → Mods → Import**, escolha o `.hmod` e ligue o mod na
 lista (mods começam desligados).
@@ -141,6 +141,11 @@ no máximo 14 comandos por tick.
 
 `mobile/wit/horizon.wit` é a definição da API de mods do Horizon (licença MIT,
 © Ludovic Marie e contribuidores do Horizon), copiada sem alteração.
+
+O port dá a cada mod um limite de 50 milhões de instruções por tick e
+desliga o mod que passa disso. O Tempest divide o trabalho entre ticks, e
+`tools/build-mobile.sh` roda o componente no wasmtime com esse limite
+(`mobile/tools/fuelcheck`) e falha se algum tick passar de 60%.
 
 Gerar o arquivo: `tools/build-mobile.sh` (precisa de
 `rustup target add wasm32-unknown-unknown`).
