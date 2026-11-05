@@ -167,14 +167,23 @@ horizon-tempest/
   api/src/tests.rs        # servidor e cliente dirigidos por um jogo falso
   devstub/horizon-client/ # stub da parte do mod_api que o Tempest usa
   tools/check.sh          # cargo test / clippy contra o stub
+  tools/check-horizon.sh  # cargo check / clippy contra um clone do Horizon real
 ```
 
-`tools/check.sh` compila e testa o mod contra `devstub/horizon-client`, uma
-cópia mínima das assinaturas do `mod_api` (tiradas do código-fonte do Horizon:
-`native_hooks.rs`, `native-hooks.json` e as regras do gerador
-`horizon-mod-api-gen`), sem precisar compilar o jogo inteiro. **O build final
-contra o Horizon real é feito pelo launcher e ainda não foi testado aqui**; se
-alguma assinatura tiver mudado no Horizon, o erro vai apontar para
-`api/src/lib.rs`, `server/mod.rs` ou `client/`.
+Duas checagens:
+
+* `tools/check.sh` compila e testa o mod contra `devstub/horizon-client`, uma
+  cópia mínima das assinaturas do `mod_api` que o Tempest usa, sem compilar o
+  jogo. É rápido e é onde rodam os 30 testes (inclusive servidor e cliente
+  dirigidos por um jogo falso). Os testes usam construtores que só existem no
+  stub, então eles rodam só aí.
+* `tools/check-horizon.sh <clone do horizon>` coloca o mod no workspace do
+  Horizon real, como o launcher faz, e roda `cargo check` (ou `clippy`).
+  **Passou sem erros nem avisos** (check e clippy) no commit
+  `d158e4473623` do Horizon. Áudio e controles ficam desligados
+  nessa checagem porque precisam de libasound/libudev e não mexem na API de mods.
+
+Ainda não foi testado: o executável gerado pelo launcher rodando com o mod (o
+`native-build`) e o comportamento dentro do jogo.
 
 Licença: MIT (este mod). O resto do repositório segue a licença dele.
