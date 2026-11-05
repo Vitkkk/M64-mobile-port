@@ -34,6 +34,8 @@ pub trait Io {
     /// (game time, day time)
     fn clock(&self) -> Option<(u64, u64)>;
     fn run(&mut self, lines: &[String]);
+    /// Like `run`, but the game's answers (and errors) show in chat.
+    fn run_loud(&mut self, lines: &[String]);
     fn set_corner(&mut self, w: f32, h: f32, shapes: &[Shape]);
     fn clear_corner(&mut self);
     fn set_hud(&mut self, shapes: &[Shape]);
@@ -79,6 +81,9 @@ pub struct Tempest {
     rng: Rng,
     queue: Vec<String>,
     timers: [i64; 6],
+    /// For `/tempest debug`.
+    last_dimension: String,
+    commands_sent: u64,
 }
 
 const T_WIND: usize = 0;
@@ -122,6 +127,8 @@ impl Tempest {
             ticks: 0,
             rng: Rng::new(0x7E57_AD01),
             queue: Vec::new(),
+            last_dimension: String::new(),
+            commands_sent: 0,
             timers: [0; 6],
         };
         t.apply_cfg();
@@ -159,6 +166,9 @@ impl Tempest {
 
     pub fn tick(&mut self, io: &mut dyn Io) {
         let (Some(p), Some((gt, dt))) = (io.player(), io.clock()) else { return };
+        if p.dimension != self.last_dimension {
+            self.last_dimension = p.dimension.clone();
+        }
         if p.dimension != OVERWORLD {
             self.hide(io);
             return;
@@ -209,6 +219,7 @@ impl Tempest {
         self.sounds();
         if !self.queue.is_empty() {
             let q = std::mem::take(&mut self.queue);
+            self.commands_sent += q.len() as u64;
             io.run(&q);
         }
         if self.cfg.radar && (t.saturating_sub(self.radar_t) >= self.cfg.quality.budget().radar_refresh as i64 || t < self.radar_t) {
@@ -698,8 +709,52 @@ impl Tempest {
                 self.save_all(io);
                 format!("{} = {v}", words[1])
             }
+            Some("here" | "now" | "aqui") => {
+                // A tornado on the ground right now, centred on the player.
+                let ef = words.get(1).and_then(|e| e.trim_start_matches(['e', 'E', 'f', 'F']).parse::<u8>().ok()).unwrap_or(3).min(5);
+                let mut s = self.spawner.manual(StormKind::Supercell, here, self.t, Some(ef), 0);
+                if let Some(td) = s.tornado.as_mut() {
+                    td.dur = td.dur.max(2400);
+                    // Already past touchdown, so it is at full width now.
+                    td.start = (self.t - s.t0) as i32 - td.dur / 6;
+                }
+                // Move the storm so that the tornado itself sits on the player.
+                if let Some(tor) = s.tornado_at(tf) {
+                    s.origin[0] += here[0] - tor.pos[0];
+                    s.origin[1] += here[1] - tor.pos[1];
+                }
+                self.manual.push(s);
+                self.refreshed = i64::MIN;
+                self.save_all(io);
+                let tor = s.tornado_at(tf);
+                match tor {
+                    Some(t) => format!("EF{ef} tornado on you now (radius {:.0} blocks). Run /tempest test if you see nothing.", t.radius),
+                    None => "Could not place the tornado".into(),
+                }
+            }
+            Some("debug") => {
+                let near = self.nearest_tornado().map(|t| format!("{:.0} blocks", (t.pos[0] - here[0]).hypot(t.pos[1] - here[1]))).unwrap_or_else(|| "none".into());
+                format!(
+                    "dimension {} | game time {} | ticks seen {} | storms {} (manual {}) | tornadoes {} (nearest {near}) | commands sent {} | radar {} {}x{} | quality {}",
+                    if self.last_dimension.is_empty() { "?" } else { &self.last_dimension },
+                    self.t, self.ticks, self.storms.len(), self.manual.len(), self.tors.len(), self.commands_sent,
+                    if self.cfg.radar { "on" } else { "off" }, self.radar_n, self.radar_n, self.cfg.quality.name()
+                )
+            }
+            Some("test") => {
+                // Visible commands whose answers show in chat: tells cheats and
+                // particle syntax problems apart from a mod that is not running.
+                let p = self.pos;
+                let lines = vec![
+                    format!("particle minecraft:campfire_cosy_smoke {:.1} {:.1} {:.1} 1 2 1 0.01 40 force", p[0], p[1] + 3.0, p[2]),
+                    cmds::particle("minecraft:poof", p[0] + 6.0, p[2], 1.0, 2.0, 1.0, 2.0, 0.1, 30),
+                    cmds::sound("minecraft:event.raid.horn", "master", [p[0], p[1], p[2]], 1.0, 1.0),
+                ];
+                io.run_loud(&lines);
+                "Test sent: you should see smoke above you, a puff 6 blocks east and hear a horn. Errors from the game show in chat (\"Unknown or incomplete command\" or no permission = cheats are off).".into()
+            }
             Some("settings") => self.cfg.to_text().replace('\n', "; "),
-            _ => "/tempest spawn <kind> [ef] | list | info | clear | radar | vel | ref | range <m> | quality <low|medium|high> | set <key> <value> | settings".into(),
+            _ => "/tempest here [ef] | spawn <kind> [ef] | test | debug | list | info | clear | radar | vel | ref | range <m> | quality <low|medium|high> | set <key> <value> | settings".into(),
         };
         Ok(Some(reply))
     }
@@ -738,6 +793,9 @@ mod tests {
         }
         fn run(&mut self, lines: &[String]) {
             self.max_batch = self.max_batch.max(lines.len());
+            self.ran.extend(lines.iter().cloned());
+        }
+        fn run_loud(&mut self, lines: &[String]) {
             self.ran.extend(lines.iter().cloned());
         }
         fn set_corner(&mut self, w: f32, h: f32, shapes: &[Shape]) {
@@ -794,6 +852,31 @@ mod tests {
         // Saved storms come back.
         let again = Tempest::new(&io);
         assert_eq!(again.manual.len(), 1);
+    }
+
+    #[test]
+    fn here_puts_a_tornado_on_the_player() {
+        let mut io = Fake { t: 200_000, ..Fake::default() };
+        let mut m = Tempest::new(&io);
+        m.command(&mut io, "set storm_rate 0").unwrap();
+        m.tick(&mut io);
+        let r = m.command(&mut io, "here 4").unwrap().unwrap();
+        assert!(r.contains("EF4 tornado on you"), "{r}");
+        io.t += 1;
+        m.tick(&mut io);
+        let tor = m.nearest_tornado().expect("tornado now");
+        let d = tor.pos[0].hypot(tor.pos[1]);
+        assert!(d < tor.radius.max(10.0), "on the player: {d}");
+        assert!(io.ran.iter().any(|c| c.contains("campfire_cosy_smoke")), "funnel at once");
+        for _ in 0..600 {
+            io.t += 1;
+            m.tick(&mut io);
+        }
+        assert!(m.nearest_tornado().is_some(), "still there after 30 s");
+        assert!(m.command(&mut io, "debug").unwrap().unwrap().contains("tornadoes 1"));
+        let before = io.ran.len();
+        m.command(&mut io, "test").unwrap();
+        assert_eq!(io.ran.len(), before + 3);
     }
 
     #[test]

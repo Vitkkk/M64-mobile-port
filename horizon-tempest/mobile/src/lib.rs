@@ -48,6 +48,11 @@ impl Io for Real {
     fn run(&mut self, lines: &[String]) {
         command::run_quiet(lines);
     }
+    fn run_loud(&mut self, lines: &[String]) {
+        for line in lines.iter().take(8) {
+            command::run(line);
+        }
+    }
     fn set_corner(&mut self, w: f32, h: f32, shapes: &[Shape]) {
         let shapes: Vec<render::Shape> = shapes.iter().map(shape).collect();
         render::set_corner(render::Corner::TopRight, w, h, &shapes);

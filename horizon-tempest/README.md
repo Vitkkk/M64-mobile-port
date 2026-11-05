@@ -107,7 +107,7 @@ mostra tempestades locais só visuais (`fallback = true`).
 Os ports Android não oficiais do Horizon (ex.: "Horizon Android 0.7.x")
 **não compilam mods nativos** (`.hnmod`): eles rodam só `.hmod` com o mod em
 WebAssembly, numa sandbox (API `horizon:mods` 0.1). Para eles existe uma
-versão própria: **`dist/tempest-mobile-0.1.0.hmod`** (pasta `mobile/`).
+versão própria: **`dist/tempest-mobile-0.1.1.hmod`** (pasta `mobile/`).
 
 Instalar: **Installed → Mods → Import**, escolha o `.hmod` e ligue o mod na
 lista (mods começam desligados).
@@ -130,7 +130,7 @@ nem mexer na neblina, então muda o seguinte:
 como você. Ative "Permitir cheats" no mundo (ou abra em LAN com cheats).
 Sem cheats, radar, painel, alertas e tremor continuam funcionando.
 
-Comandos da versão mobile: `/tempest spawn <tipo> [EF]`, `list`, `info`,
+Comandos da versão mobile: `/tempest here [EF]` (tornado em cima de você na hora), `test` (mostra no chat se os comandos do mod funcionam), `debug`, `spawn <tipo> [EF]`, `list`, `info`,
 `clear`, `radar`, `vel`, `ref`, `range <m>`, `quality <low|medium|high>`,
 `set <chave> <valor>`, `settings`. Chaves: `quality`, `radar`, `velocity`,
 `info`, `radar_range`, `particles`, `sounds`, `sirens`, `shake`, `damage`,
