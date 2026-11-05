@@ -1,6 +1,6 @@
 [package]
 name = "mod-tempest"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2024"
 license = "MIT"
 description = "Tempest: storms, tornadoes, squall lines, hurricanes and radar for Horizon"

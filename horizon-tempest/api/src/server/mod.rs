@@ -73,6 +73,10 @@ pub struct ServerState {
     ticks: u64,
     /// Every wood type: a bulk edit can afford a run each.
     species: Vec<u8>,
+    /// Damage step each tile of a path has had, and tiles still to edit:
+    /// (tile, from step, to step, a wind speed of the step).
+    tiles: HashMap<(i32, i32), u8>,
+    pending: std::collections::VecDeque<((i32, i32), u8, u8, f64)>,
 }
 
 impl Default for ServerState {
@@ -100,6 +104,8 @@ impl Default for ServerState {
             damage_mode: DamageMode::Full,
             ticks: 0,
             species: damage::all_species(),
+            tiles: HashMap::new(),
+            pending: std::collections::VecDeque::new(),
         }
     }
 }
@@ -328,66 +334,79 @@ impl ServerState {
         w[0].hypot(w[1])
     }
 
-    /// Wind damage near players: a budget of columns twice a second.
+    /// Wind damage near players. The path is cut into tiles; each tile gets
+    /// the edits of each new damage step once, on every one of its columns
+    /// (trees stripped and debarked, ground scoured, buildings torn down),
+    /// plus per-column extras (snapped trunks, holes). Pending tiles are
+    /// worked off within `damage_budget` columns a second.
     fn damage(&mut self, host: &mut dyn Host) {
         if !self.cfg.damage || self.damage_mode == DamageMode::Off || self.active.is_empty() {
             return;
         }
-        let budget = (self.cfg.damage_budget / 2).max(1) as usize;
-        let mut columns: Vec<(i32, i32)> = Vec::with_capacity(budget);
+        if self.tiles.len() > 50_000 {
+            self.tiles.clear();
+        }
         let players: Vec<[f64; 3]> = self.overworld_players().map(|(_, p)| p.pos).collect();
-        // Tornadoes near a player (their chunks are loaded).
+        let mut areas: Vec<([f64; 2], f64)> = Vec::new();
         for (_, tor) in &self.tors {
-            let near = players.iter().any(|p| (p[0] - tor.pos[0]).hypot(p[2] - tor.pos[1]) < 400.0 + tor.radius * 3.0);
-            if !near {
-                continue;
-            }
-            let zone = tor.radius * 2.4;
-            let n = ((zone * zone * std::f64::consts::PI / 30.0) as usize).clamp(4, budget);
-            for _ in 0..n {
-                let a = self.rng.f64() * std::f64::consts::TAU;
-                let r = zone * self.rng.f64().sqrt();
-                columns.push(((tor.pos[0] + r * a.cos()).floor() as i32, (tor.pos[1] + r * a.sin()).floor() as i32));
+            let near = players.iter().any(|p| (p[0] - tor.pos[0]).hypot(p[2] - tor.pos[1]) < 400.0 + tor.radius * 4.0);
+            if near {
+                areas.push((tor.pos, tor.radius * (tor.vmax / 29.0).powf(1.0 / 0.75).min(3.5)));
             }
         }
-        // Straight-line and hurricane winds around each player.
         for p in &players {
             let env = self.env_at(p[0], p[2]);
-            if self.wind_speed(p[0], p[2], &env, self.cfg.hurricane_damage) < 27.0 {
-                continue;
+            if self.wind_speed(p[0], p[2], &env, self.cfg.hurricane_damage) >= 29.0 {
+                areas.push(([p[0], p[2]], 96.0));
             }
-            for _ in 0..(budget / 3).max(2) {
-                let a = self.rng.f64() * std::f64::consts::TAU;
-                let r = 96.0 * self.rng.f64().sqrt();
-                columns.push(((p[0] + r * a.cos()).floor() as i32, (p[2] + r * a.sin()).floor() as i32));
-            }
-        }
-        if columns.is_empty() {
-            return;
-        }
-        // Spread the budget fairly when several sources ask for more.
-        if columns.len() > budget {
-            for i in 0..budget {
-                let j = i + (self.rng.f64() * (columns.len() - i) as f64) as usize;
-                columns.swap(i, j);
-            }
-            columns.truncate(budget);
         }
         let env = players.first().map(|p| self.env_at(p[0], p[2])).unwrap_or_default();
-        let mut plan = Vec::new();
-        let mut runs = Vec::new();
-        for (x, z) in columns {
-            let speed = self.wind_speed(x as f64 + 0.5, z as f64 + 0.5, &env, self.cfg.hurricane_damage);
-            plan.clear();
-            damage::plan_column(speed, &mut self.rng, &self.species, &mut plan);
-            for r in &plan {
-                runs.push((x + r.dx, z + r.dz, *r));
+        for (c, reach) in areas {
+            let (t0, t1) = (damage::tile_of(c[0] - reach, c[1] - reach), damage::tile_of(c[0] + reach, c[1] + reach));
+            for tx in t0.0..=t1.0 {
+                for tz in t0.1..=t1.1 {
+                    let (cx, cz) = damage::tile_center((tx, tz));
+                    let (x, z) = (cx as f64 + 0.5, cz as f64 + 0.5);
+                    if (x - c[0]).hypot(z - c[1]) > reach + damage::TILE as f64 {
+                        continue;
+                    }
+                    let tier = damage::tier_of(self.wind_speed(x, z, &env, self.cfg.hurricane_damage));
+                    let done = self.tiles.get(&(tx, tz)).copied().unwrap_or(0);
+                    if tier > done && self.pending.len() < 4000 {
+                        self.pending.push_back(((tx, tz), done, tier, tier_speed(tier)));
+                        self.tiles.insert((tx, tz), tier);
+                    }
+                }
             }
         }
-        if runs.is_empty() {
-            return;
+        let mut columns_left = (self.cfg.damage_budget / 2).max(1) as i64;
+        let mut runs = Vec::new();
+        let mut ops = Vec::new();
+        let mut extras = Vec::new();
+        while columns_left > 0 {
+            let Some(((tx, tz), from, to, speed)) = self.pending.pop_front() else { break };
+            columns_left -= (damage::TILE * damage::TILE) as i64;
+            ops.clear();
+            for step in from + 1..=to {
+                damage::tile_ops(step, &self.species, &mut ops);
+            }
+            for dx in 0..damage::TILE {
+                for dz in 0..damage::TILE {
+                    let (x, z) = (tx * damage::TILE + dx, tz * damage::TILE + dz);
+                    for op in &ops {
+                        let (lo, hi) = op.band.range();
+                        let run = damage::Run { dx: 0, dz: 0, depth: lo, height: (hi - lo + 1) as u32, surface: Surface::World, block: op.block, filter: op.filter };
+                        runs.push((x, z, run));
+                    }
+                    extras.clear();
+                    damage::plan_column_extras(speed, &mut self.rng, &mut extras);
+                    runs.extend(extras.iter().map(|r| (x, z, *r)));
+                }
+            }
         }
-        self.apply(host, &runs);
+        if !runs.is_empty() {
+            self.apply(host, &runs);
+        }
     }
 
     /// Turns planned runs into one bulk edit.
@@ -661,6 +680,14 @@ impl ServerState {
             }
             _ => reply(host, "Tempest: /tempest spawn <kind> [ef] | clear | list | info | set <key> <value> | reload".into()),
         }
+    }
+}
+
+/// A wind speed inside damage step `tier` (for the per-column extras).
+fn tier_speed(tier: u8) -> f64 {
+    match tier {
+        0 => 0.0,
+        t => crate::sim::storm::EF_MIN[(t as usize - 1).min(5)] + 3.0,
     }
 }
 

@@ -150,12 +150,17 @@ fn strip(out: &mut Vec<Run>, filter: u8, depth: u32) {
 /// indexes in [`SPECIES`] of the wood types to debark (all of them when the
 /// caller can afford it). Appends to `out`.
 pub fn plan_column(speed: f64, rng: &mut Rng, species: &[u8], out: &mut Vec<Run>) {
-    if speed < 29.0 {
-        return;
-    }
     // Partial damage near the thresholds.
     let p = ((speed - 27.0) / 20.0).clamp(0.2, 1.0);
-    if !rng.chance(p) {
+    if speed >= 29.0 && rng.chance(p) {
+        plan_column_full(speed, rng, species, out);
+    }
+}
+
+/// [`plan_column`] without the chance of being spared: every edit of the
+/// wind's step (holes stay random).
+pub fn plan_column_full(speed: f64, rng: &mut Rng, species: &[u8], out: &mut Vec<Run>) {
+    if speed < 29.0 {
         return;
     }
     // EF0: plants and snow cover blown away, crowns thinned.
@@ -216,6 +221,113 @@ pub fn plan_column(speed: f64, rng: &mut Rng, species: &[u8], out: &mut Vec<Run>
         if rng.chance(p) {
             strip(out, F_ANY_DIRT, 1);
         }
+    }
+}
+
+/// Damage step of a wind: 0 below EF0, 1 for EF0 ... 6 for EF5.
+pub fn tier_of(speed: f64) -> u8 {
+    super::storm::ef_of(speed).map_or(0, |ef| ef + 1)
+}
+
+/// Side of the square tiles a tornado's path is processed in.
+pub const TILE: i32 = 13;
+pub const TILE_HALF: i32 = TILE / 2;
+
+/// The tile holding block column (x, z).
+pub fn tile_of(x: f64, z: f64) -> (i32, i32) {
+    ((x / TILE as f64).floor() as i32, (z / TILE as f64).floor() as i32)
+}
+
+/// The centre column of a tile.
+pub fn tile_center(t: (i32, i32)) -> (i32, i32) {
+    (t.0 * TILE + TILE_HALF, t.1 * TILE + TILE_HALF)
+}
+
+/// Which heights a whole-tile edit covers, from the tile's top block.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Band {
+    /// Trees, plants and ground: 32 below to 28 above.
+    Nature,
+    /// Buildings: 16 below to 24 above (so mineshafts and dungeons deeper down are spared).
+    Building,
+}
+
+impl Band {
+    pub fn range(self) -> (i32, i32) {
+        match self {
+            Band::Nature => (-32, 28),
+            Band::Building => (-16, 24),
+        }
+    }
+}
+
+/// One edit over a whole tile: `filter` becomes `block` within the band.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct TileOp {
+    pub filter: u8,
+    pub block: u8,
+    pub band: Band,
+}
+
+/// The whole-tile edits that a step adds to the steps below it (cumulative:
+/// apply every step up to the wind's).
+pub fn tile_ops(tier: u8, species: &[u8], out: &mut Vec<TileOp>) {
+    let mut op = |filter: u8, block: u8, band: Band| out.push(TileOp { filter, block, band });
+    match tier {
+        1 => {
+            for f in [F_SNOW, F_SHORT_GRASS, F_FLOWERS, F_CROPS] {
+                op(f, AIR, Band::Nature);
+            }
+        }
+        2 => {
+            for f in [F_GLASS, F_PANE, F_DOORS, F_TRAPDOORS, F_FENCES, F_WOOL] {
+                op(f, AIR, Band::Building);
+            }
+        }
+        3 => {
+            op(F_LEAVES, AIR, Band::Nature);
+            for &s in species {
+                if (s as usize) < SPECIES.len() {
+                    op(F_SPECIES_LOG + s, STRIPPED + s, Band::Nature);
+                }
+            }
+        }
+        4 => {
+            for f in [F_PLANKS, F_STAIRS, F_SLABS, F_BEDS] {
+                op(f, AIR, Band::Building);
+            }
+            op(F_GRASS_BLOCK, DIRT, Band::Nature);
+        }
+        5 => {
+            for f in MASONRY {
+                op(f, AIR, Band::Building);
+            }
+            op(F_GRASS_BLOCK, COARSE_DIRT, Band::Nature);
+            op(F_DIRT, COARSE_DIRT, Band::Nature);
+        }
+        _ => {}
+    }
+}
+
+/// What whole-tile edits can't do, per column: thinning crowns below EF2,
+/// snapping debarked trunks (some stay standing), holes one block deep.
+pub fn plan_column_extras(speed: f64, rng: &mut Rng, out: &mut Vec<Run>) {
+    if speed < 29.0 {
+        return;
+    }
+    if speed < 50.0 && rng.chance(0.6) {
+        strip(out, F_LEAVES, if speed >= 38.0 { 8 } else { 3 });
+    }
+    if speed >= 61.0 && rng.chance(if speed >= 89.0 { 0.75 } else { 0.5 }) {
+        let snap = match speed {
+            s if s >= 89.0 => 12,
+            s if s >= 74.0 => 7,
+            _ => 3,
+        };
+        strip(out, F_LOGS, snap);
+    }
+    if speed >= 74.0 && rng.chance(if speed >= 89.0 { 0.5 } else { 0.25 }) {
+        strip(out, F_ANY_DIRT, 1);
     }
 }
 
@@ -288,6 +400,33 @@ mod tests {
             assert!(FILTERS[F_SPECIES_LOG as usize + i].contains(&format!(":{s}_log")));
             assert!(PALETTE[STRIPPED as usize + i].contains(&format!("stripped_{s}_log")));
         }
+    }
+
+    #[test]
+    fn tiles_cover_the_scale() {
+        let mut all = Vec::new();
+        for tier in 1..=6 {
+            tile_ops(tier, &[1], &mut all);
+        }
+        let has = |f: u8, b: u8| all.iter().any(|o| o.filter == f && o.block == b);
+        assert!(has(F_LEAVES, AIR) && has(F_SPECIES_LOG + 1, STRIPPED + 1));
+        assert!(has(F_GRASS_BLOCK, COARSE_DIRT) && has(F_BRICKS, AIR) && has(F_GLASS, AIR));
+        for o in &all {
+            let (lo, hi) = o.band.range();
+            let volume = (TILE * TILE) as i64 * (hi - lo + 1) as i64;
+            assert!(volume <= 32_768, "a fill may change 32768 blocks");
+        }
+        assert_eq!(tier_of(10.0), 0);
+        assert_eq!(tier_of(30.0), 1);
+        assert_eq!(tier_of(95.0), 6);
+        assert_eq!(tile_of(-1.0, 13.0), (-1, 1));
+        assert_eq!(tile_center((0, 0)), (6, 6));
+        let mut rng = Rng::new(3);
+        let mut ex = Vec::new();
+        for _ in 0..50 {
+            plan_column_extras(95.0, &mut rng, &mut ex);
+        }
+        assert!(ex.iter().any(|r| r.filter == F_LOGS) && ex.iter().any(|r| r.filter == F_ANY_DIRT));
     }
 
     #[test]

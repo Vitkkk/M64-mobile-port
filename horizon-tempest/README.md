@@ -72,8 +72,9 @@ jar); o radar, a sirene e a estação existem como HUD por enquanto.
   neblina e cor do céu.
 * **Radar barato.** Uma varredura de 32×32 (Baixa) a cada 2 s; no HUD, cada
   linha vira poucos retângulos (cores iguais são unidas).
-* **Dano com orçamento.** Edições de bloco em lote duas vezes por segundo, por
-  colunas (`damage_budget`, padrão 120 colunas/s), filtradas por tags — o
+* **Dano com orçamento.** O caminho do tornado é dividido em ladrilhos de
+  13×13; cada ladrilho recebe as edições de cada nível de força uma vez só, em
+  lote (`damage_budget`, padrão 1200 colunas/s), filtradas por tags — o
   servidor nem precisa ler bloco nenhum.
 
 Medido no PC de desenvolvimento (release): listar as tempestades perto de um
@@ -86,7 +87,7 @@ seção "Trait mods"). Ele precisa de um Horizon recente (que tenha os ganchos
 `world_primitives`, `camera_shake`, `shader_params`, `compute_fog_color` e
 `render_fog` no `mod_api`).
 
-O arquivo pronto é `dist/tempest-0.2.0.hnmod`, fixado no commit
+O arquivo pronto é `dist/tempest-0.3.0.hnmod`, fixado no commit
 `d158e4473623` do Horizon (o mesmo em que foi checado) e aceito pelo
 verificador oficial (`cargo horizon-mod check`). Instale-o pela tela de mods
 do launcher, ou compile a pasta direto:
@@ -107,7 +108,7 @@ mostra tempestades locais só visuais (`fallback = true`).
 Os ports Android não oficiais do Horizon (ex.: "Horizon Android 0.7.x")
 **não compilam mods nativos** (`.hnmod`): eles rodam só `.hmod` com o mod em
 WebAssembly, numa sandbox (API `horizon:mods` 0.1). Para eles existe uma
-versão própria: **`dist/tempest-mobile-0.2.0.hmod`** (pasta `mobile/`).
+versão própria: **`dist/tempest-mobile-0.3.0.hmod`** (pasta `mobile/`).
 
 Instalar: **Installed → Mods → Import**, escolha o `.hmod` e ligue o mod na
 lista (mods começam desligados).

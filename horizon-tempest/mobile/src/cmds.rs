@@ -24,6 +24,15 @@ pub fn damage_fill(x: i32, z: i32, r: i32, run: &Run) -> String {
     )
 }
 
+/// A whole-tile edit: within the tile centred on column (cx, cz), from `lo`
+/// to `hi` blocks around its top (plants and leaves included), every
+/// `filter` becomes `block`.
+pub fn tile_fill(cx: i32, cz: i32, half: i32, lo: i32, hi: i32, block: &str, filter: &str) -> String {
+    format!(
+        "execute positioned {cx} 0 {cz} positioned over world_surface run fill ~-{half} ~{lo} ~-{half} ~{half} ~{hi} ~{half} {block} replace {filter}"
+    )
+}
+
 /// Particles on the ground at (x, z), `dy` above the surface, spread
 /// over a box of half-sizes (sx, sy, sz), seen from far away.
 #[allow(clippy::too_many_arguments)]
@@ -98,6 +107,10 @@ mod tests {
         assert_eq!(
             debris(1, 2, -1, "minecraft:bricks", [0.5, 1.0, -0.25]),
             "execute positioned 1 0 2 positioned over motion_blocking if block ~ ~-1 ~ minecraft:bricks run summon minecraft:falling_block ~ ~-1 ~ {BlockState:{Name:\"minecraft:bricks\"},DropItem:0b,HurtEntities:1b,Motion:[0.50d,1.00d,-0.25d]}"
+        );
+        assert_eq!(
+            tile_fill(6, 6, 6, -40, 30, "minecraft:air", "#minecraft:leaves"),
+            "execute positioned 6 0 6 positioned over world_surface run fill ~-6 ~-40 ~-6 ~6 ~30 ~6 minecraft:air replace #minecraft:leaves"
         );
         assert!(lightning(5, 6).ends_with("summon minecraft:lightning_bolt"));
         assert!(suck(0.0, 64.0, 0.0, 20.0, 0.4, 0.2, 0.5).contains("distance=..20,limit=24"));

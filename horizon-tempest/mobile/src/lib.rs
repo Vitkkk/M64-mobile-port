@@ -4,6 +4,9 @@
 //! particles, and acts on the world with vanilla commands run as the
 //! player (so world effects need cheats).
 
+// Written for older stable compilers too: no let-chains, no `is_multiple_of`.
+#![allow(clippy::collapsible_if, clippy::manual_is_multiple_of)]
+
 #[path = "../../api/src/sim/mod.rs"]
 pub mod sim;
 

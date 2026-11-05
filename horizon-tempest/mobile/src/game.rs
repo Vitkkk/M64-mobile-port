@@ -12,6 +12,7 @@ use crate::sim::radar::{self, dbz_color, Product};
 use crate::sim::rng::Rng;
 use crate::sim::spawn::Spawner;
 use crate::sim::storm::{hurricane_category, StormDef, StormKind, TornadoState};
+use std::collections::{HashMap, VecDeque};
 
 pub const OVERWORLD: &str = "minecraft:overworld";
 
@@ -88,6 +89,9 @@ pub struct Tempest {
     commands_sent: u64,
     /// Wood types seen around the player (newest first), to debark the right logs.
     species: Vec<u8>,
+    /// Damage step each tile of the path has had, and the edits still to run.
+    tiles: HashMap<(i32, i32), u8>,
+    backlog: VecDeque<String>,
 }
 
 const T_WIND: usize = 0;
@@ -134,6 +138,8 @@ impl Tempest {
             last_dimension: String::new(),
             commands_sent: 0,
             species: Vec::new(),
+            tiles: HashMap::new(),
+            backlog: VecDeque::new(),
             timers: [0; 6],
         };
         t.apply_cfg();
@@ -229,6 +235,11 @@ impl Tempest {
             self.vanilla_weather();
         }
         self.sounds();
+        // Damage still owed, in what's left of this tick's budget.
+        while self.queue.len() < self.budget() {
+            let Some(cmd) = self.backlog.pop_front() else { break };
+            self.queue.push(cmd);
+        }
         if !self.queue.is_empty() {
             let q = std::mem::take(&mut self.queue);
             self.commands_sent += q.len() as u64;
@@ -363,71 +374,93 @@ impl Tempest {
         }
     }
 
-    /// Wind damage near the player, as `fill ... replace` over small squares;
-    /// masonry, roofs and trunks fly off as falling-block debris.
+    /// Wind damage. The path is cut into tiles; each tile gets the whole-tile
+    /// edits of each new damage step once (a `fill ... replace` over 13x13
+    /// columns and 70 blocks of height), so a strong tornado leaves a swath of
+    /// bare, debarked trees and scoured ground. Per-column extras snap some
+    /// trunks and dig holes; debris flies off.
     fn damage(&mut self) {
-        if !self.cfg.damage || self.storms.is_empty() {
+        if !self.cfg.damage || self.storms.is_empty() || self.backlog.len() > 600 {
             return;
         }
         let p = self.pos;
         let tf = self.t as f64;
-        // (x, z, half side of the square, the vortex it belongs to)
-        let mut samples: Vec<(f64, f64, i32, Option<TornadoState>)> = Vec::new();
+        if self.tiles.len() > 20_000 {
+            self.tiles.clear();
+        }
+        let species: Vec<u8> = if self.species.is_empty() { vec![0, 1, 2] } else { self.species.clone() };
+        // Areas with damaging wind: around tornadoes near the player, and
+        // around the player in straight-line or hurricane winds.
+        let mut areas: Vec<([f64; 2], f64, Option<TornadoState>)> = Vec::new();
         for (_, tor) in &self.tors {
             let d = (tor.pos[0] - p[0]).hypot(tor.pos[1] - p[2]);
-            if d > 200.0 + tor.radius * 3.0 {
-                continue; // outside the loaded chunks, most likely
-            }
-            // Where the wind passes EF0: about 1.5 core radii.
-            let zone = tor.radius * 1.6;
-            for _ in 0..5 {
-                let a = self.rng.f64() * std::f64::consts::TAU;
-                let r = zone * self.rng.f64().sqrt();
-                samples.push((tor.pos[0] + r * a.cos(), tor.pos[1] + r * a.sin(), 1, Some(*tor)));
+            if d < 220.0 + tor.radius * 4.0 {
+                // Where the vortex passes 29 m/s (EF0), at most 3.5 core radii.
+                let reach = tor.radius * (tor.vmax / 29.0).powf(1.0 / 0.75).min(3.5);
+                areas.push((tor.pos, reach, Some(*tor)));
             }
         }
         let (w, _) = field::wind_at(&self.storms, &self.tors, self.env.wind, p[0], p[2], tf);
-        if w[0].hypot(w[1]) >= 27.0 {
-            for _ in 0..2 {
-                let a = self.rng.f64() * std::f64::consts::TAU;
-                let r = 80.0 * self.rng.f64().sqrt();
-                samples.push((p[0] + r * a.cos(), p[2] + r * a.sin(), 1, None));
-            }
+        if w[0].hypot(w[1]) >= 29.0 {
+            areas.push(([p[0], p[2]], 48.0, None));
         }
-        let species: Vec<u8> = if self.species.is_empty() { vec![0, 1, 2] } else { self.species.clone() };
-        let wood = species[0] as usize;
+        let mut ops = Vec::new();
         let mut plan = Vec::new();
-        let mut debris_left = 3;
-        for (x, z, half, tor) in samples {
-            let (w, _) = field::wind_at(&self.storms, &self.tors, self.env.wind, x, z, tf);
-            plan.clear();
-            damage::plan_column(w[0].hypot(w[1]), &mut self.rng, &species, &mut plan);
-            let (xi, zi) = (x.floor() as i32, z.floor() as i32);
-            // A few of the column's edits at a time: the rest come on later passes.
-            for _ in 0..plan.len().min(5) {
-                let i = (self.rng.f64() * plan.len() as f64) as usize;
-                let run = plan.swap_remove(i);
-                if debris_left > 0 {
-                    let block = match run.filter {
-                        damage::F_PLANKS => Some(format!("minecraft:{}_planks", damage::SPECIES[wood])),
-                        damage::F_LOGS => Some(format!("minecraft:stripped_{}_log", damage::SPECIES[wood])),
-                        f if damage::MASONRY.contains(&f) => damage::single_block(f).map(str::to_string),
+        for (c, reach, tor) in &areas {
+            let (t0, t1) = (damage::tile_of(c[0] - reach, c[1] - reach), damage::tile_of(c[0] + reach, c[1] + reach));
+            for tx in t0.0..=t1.0 {
+                for tz in t0.1..=t1.1 {
+                    let (cx, cz) = damage::tile_center((tx, tz));
+                    let (x, z) = (cx as f64 + 0.5, cz as f64 + 0.5);
+                    if (x - c[0]).hypot(z - c[1]) > reach + damage::TILE as f64 {
+                        continue;
+                    }
+                    let (w, _) = field::wind_at(&self.storms, &self.tors, self.env.wind, x, z, tf);
+                    let tier = damage::tier_of(w[0].hypot(w[1]));
+                    let done = self.tiles.get(&(tx, tz)).copied().unwrap_or(0);
+                    if tier <= done {
+                        continue;
+                    }
+                    for step in done + 1..=tier {
+                        ops.clear();
+                        damage::tile_ops(step, &species, &mut ops);
+                        for op in &ops {
+                            let (lo, hi) = op.band.range();
+                            self.backlog.push_back(cmds::tile_fill(cx, cz, damage::TILE_HALF, lo, hi, damage::PALETTE[op.block as usize], damage::FILTERS[op.filter as usize]));
+                        }
+                    }
+                    self.tiles.insert((tx, tz), tier);
+                }
+            }
+            // Per-column extras and debris, a few each pass.
+            for _ in 0..4 {
+                let a = self.rng.f64() * std::f64::consts::TAU;
+                let r = reach * self.rng.f64().sqrt();
+                let (x, z) = (c[0] + r * a.cos(), c[1] + r * a.sin());
+                let (w, _) = field::wind_at(&self.storms, &self.tors, self.env.wind, x, z, tf);
+                let speed = w[0].hypot(w[1]);
+                let (xi, zi) = (x.floor() as i32, z.floor() as i32);
+                plan.clear();
+                damage::plan_column_extras(speed, &mut self.rng, &mut plan);
+                for run in &plan {
+                    self.push(cmds::damage_fill(xi, zi, 1, run));
+                }
+                if let Some(tor) = tor {
+                    let tier = damage::tier_of(speed);
+                    let wood = damage::SPECIES[species[0] as usize];
+                    let block = match tier {
+                        t if t >= 5 && self.rng.chance(0.5) => damage::single_block(damage::MASONRY[(self.rng.f64() * 4.0) as usize]).map(str::to_string),
+                        t if t >= 4 => Some(if self.rng.chance(0.5) { format!("minecraft:{wood}_planks") } else { format!("minecraft:stripped_{wood}_log") }),
                         _ => None,
                     };
-                    if let (Some(block), Some(tor)) = (block, tor) {
+                    if let Some(block) = block {
                         // Thrown around the vortex (counter-clockwise), inward and up.
                         let (dx, dz) = (x - tor.pos[0], z - tor.pos[1]);
-                        let r = dx.hypot(dz).max(1.0);
+                        let rr = dx.hypot(dz).max(1.0);
                         let k = (tor.vmax / 60.0).min(1.6);
-                        let motion = [(dz / r * 0.9 - dx / r * 0.3) * k, 0.6 + 0.5 * k, (-dx / r * 0.9 - dz / r * 0.3) * k];
-                        if !self.push(cmds::debris(xi, zi, -1, &block, motion)) {
-                            return;
-                        }
-                        debris_left -= 1;
+                        let motion = [(dz / rr * 0.9 - dx / rr * 0.3) * k, 0.6 + 0.5 * k, (-dx / rr * 0.9 - dz / rr * 0.3) * k];
+                        self.push(cmds::debris(xi, zi, -1, &block, motion));
                     }
-                }
-                if !self.push(cmds::damage_fill(xi, zi, half, &run)) {
-                    return;
                 }
             }
         }
@@ -540,7 +573,7 @@ impl Tempest {
                 }
                 let c = s.position(tf);
                 let d = (c[0] - p[0]).hypot(c[1] - p[2]);
-                if d < 300.0 || d > 12_000.0 {
+                if !(300.0..=12_000.0).contains(&d) {
                     continue; // near ones have real lightning
                 }
                 let chance = 0.1 * s.intensity(tf) * s.strength as f64;
@@ -906,6 +939,7 @@ mod tests {
         let has = |s: &str| io.ran.iter().any(|c| c.contains(s));
         assert!(has("run fill "), "damage");
         assert!(has("stripped_spruce_log[axis=y] replace minecraft:spruce_log"), "debarks the trees it sees");
+        assert!(has("over world_surface run fill ~-6 ~-32 ~-6 ~6 ~28 ~6 minecraft:air replace #minecraft:leaves"), "whole tiles of trees stripped");
         assert!(has("minecraft:coarse_dirt replace minecraft:grass_block"), "ground scouring");
         assert!(has("summon minecraft:falling_block"), "debris");
         assert!(has("campfire_cosy_smoke"), "funnel");

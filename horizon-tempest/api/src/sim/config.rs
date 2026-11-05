@@ -184,7 +184,7 @@ impl Default for ServerConfig {
             tornado_rate: 1.0,
             natural: [true; 5],
             damage: true,
-            damage_budget: 120,
+            damage_budget: 1200,
             hurricane_damage: true,
             lightning: true,
             vanilla_weather: true,

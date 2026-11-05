@@ -3,7 +3,7 @@
 #   horizon-launcher native-build <this folder> --instance <instance> --trust-native-code
 [mod]
 id = "tempest"
-version = "0.2.0"
+version = "0.3.0"
 
 # The Horizon commit Tempest was checked on (tools/check-horizon.sh).
 [compatibility]
