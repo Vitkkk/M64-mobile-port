@@ -113,8 +113,19 @@ pub fn image(
             let color = match product {
                 Product::Reflectivity => dbz_color(dbz),
                 Product::Velocity if dbz >= 5.0 => {
-                    let (w, _) = wind_at(&relevant, tors, background, x, z, t);
-                    velocity_color(radial_velocity(w, site, x, z))
+                    // A tornado smaller than a bin still shows as a couplet
+                    // (TVS): the bins next to it read its peak winds.
+                    let (mut sx, mut sz) = (x, z);
+                    for (_, tor) in tors {
+                        let (dx, dz) = (x - tor.pos[0], z - tor.pos[1]);
+                        let d = dx.hypot(dz);
+                        if d > 1e-6 && d < cell * 1.2 && d > tor.radius {
+                            sx = tor.pos[0] + dx / d * tor.radius;
+                            sz = tor.pos[1] + dz / d * tor.radius;
+                        }
+                    }
+                    let (w, _) = wind_at(&relevant, tors, background, sx, sz, t);
+                    velocity_color(radial_velocity(w, site, sx, sz))
                 }
                 Product::Velocity => 0,
             };

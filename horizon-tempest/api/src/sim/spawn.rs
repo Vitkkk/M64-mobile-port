@@ -245,7 +245,8 @@ impl Spawner {
 }
 
 fn tornado_def(r: &mut Rng, ef: u8, life: f64, along: f64) -> TornadoDef {
-    let widths = [(8.0, 20.0), (12.0, 30.0), (20.0, 50.0), (30.0, 80.0), (40.0, 110.0), (50.0, 150.0)];
+    // Radius of maximum wind, blocks: Minecraft-sized, narrow enough to see.
+    let widths = [(4.0, 9.0), (6.0, 13.0), (8.0, 18.0), (11.0, 25.0), (14.0, 34.0), (18.0, 45.0)];
     let w = widths[ef as usize];
     let start = r.range(0.25, 0.55) * life;
     let dur = ((900.0 + 800.0 * ef as f64) * r.range(0.7, 1.4)).min(life * 0.92 - start).max(300.0);

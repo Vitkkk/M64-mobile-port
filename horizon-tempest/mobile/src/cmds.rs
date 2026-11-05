@@ -33,6 +33,16 @@ pub fn particle(kind: &str, x: f64, z: f64, dy: f64, sx: f64, sy: f64, sz: f64, 
     )
 }
 
+/// The block `depth` below the surface at (x, z), if it is `block`, flies off
+/// as debris: a falling block put exactly where the block was takes its
+/// place (vanilla's falling-block rule), with a push of `motion`.
+pub fn debris(x: i32, z: i32, depth: i32, block: &str, motion: [f64; 3]) -> String {
+    format!(
+        "execute positioned {x} 0 {z} positioned over motion_blocking if block ~ ~{depth} ~ {block} run summon minecraft:falling_block ~ ~{depth} ~ {{BlockState:{{Name:\"{block}\"}},DropItem:0b,HurtEntities:1b,Motion:[{:.2}d,{:.2}d,{:.2}d]}}",
+        motion[0], motion[1], motion[2]
+    )
+}
+
 pub fn lightning(x: i32, z: i32) -> String {
     format!("execute positioned {x} 0 {z} positioned over motion_blocking run summon minecraft:lightning_bolt")
 }
@@ -85,6 +95,10 @@ mod tests {
         assert!(damage_fill(0, 0, 1, &snow).ends_with("~-1 ~0 ~-1 ~1 ~0 ~1 minecraft:snow[layers=1] replace minecraft:air"));
         assert!(particle("minecraft:large_smoke", 1.0, 2.0, 3.0, 4.0, 5.0, 6.0, 0.1, 8).ends_with("4.0 5.0 6.0 0.10 8 force"));
         assert_eq!(sound("minecraft:event.raid.horn", "master", [1.0, 2.0, 3.0], 9.0, 0.1), "playsound minecraft:event.raid.horn master @s 1.0 2.0 3.0 4.00 0.50");
+        assert_eq!(
+            debris(1, 2, -1, "minecraft:bricks", [0.5, 1.0, -0.25]),
+            "execute positioned 1 0 2 positioned over motion_blocking if block ~ ~-1 ~ minecraft:bricks run summon minecraft:falling_block ~ ~-1 ~ {BlockState:{Name:\"minecraft:bricks\"},DropItem:0b,HurtEntities:1b,Motion:[0.50d,1.00d,-0.25d]}"
+        );
         assert!(lightning(5, 6).ends_with("summon minecraft:lightning_bolt"));
         assert!(suck(0.0, 64.0, 0.0, 20.0, 0.4, 0.2, 0.5).contains("distance=..20,limit=24"));
         assert_eq!(weather(9), "weather thunder 600");

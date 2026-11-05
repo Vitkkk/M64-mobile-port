@@ -44,6 +44,8 @@ pub trait Io {
     fn load(&self, key: &str) -> Option<Vec<u8>>;
     fn save(&mut self, key: &str, value: &[u8]);
     fn chat(&mut self, text: &str);
+    /// The block the player looks at, up to 48 blocks away.
+    fn look(&self) -> Option<String>;
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -84,6 +86,8 @@ pub struct Tempest {
     /// For `/tempest debug`.
     last_dimension: String,
     commands_sent: u64,
+    /// Wood types seen around the player (newest first), to debark the right logs.
+    species: Vec<u8>,
 }
 
 const T_WIND: usize = 0;
@@ -129,6 +133,7 @@ impl Tempest {
             queue: Vec::new(),
             last_dimension: String::new(),
             commands_sent: 0,
+            species: Vec::new(),
             timers: [0; 6],
         };
         t.apply_cfg();
@@ -202,9 +207,16 @@ impl Tempest {
         self.here = field::sample(&self.storms, &self.tors, &self.env, p.pos[0], p.pos[2], tf);
         self.update_warning();
 
+        if self.ticks % 10 == 0 {
+            if let Some(sp) = io.look().as_deref().and_then(damage::species_of) {
+                self.species.retain(|&s| s != sp);
+                self.species.insert(0, sp);
+                self.species.truncate(3);
+            }
+        }
         self.queue.clear();
         self.tornado_effects(io);
-        if self.ticks % 5 == 0 {
+        if self.ticks % 2 == 0 {
             self.damage();
         }
         if self.ticks % 20 == 3 {
@@ -213,7 +225,7 @@ impl Tempest {
         if self.ticks % 40 == 11 {
             self.winter();
         }
-        if self.ticks % 200 == 17 {
+        if self.ticks % 200 == 17 || (self.vanilla != 2 && !self.tors.is_empty() && self.ticks % 20 == 9) {
             self.vanilla_weather();
         }
         self.sounds();
@@ -289,28 +301,49 @@ impl Tempest {
                 io.shake((k * k * tor.vmax / 100.0).min(1.0) as f32, 0.8);
             }
         }
-        if self.cfg.particles && d < 700.0 {
+        if self.cfg.particles && d < 800.0 {
+            use crate::sim::config::Quality;
             let per_tick = match self.cfg.quality {
-                crate::sim::config::Quality::Low => 2,
-                crate::sim::config::Quality::Medium => 4,
-                crate::sim::config::Quality::High => 7,
+                Quality::Low => 4,
+                Quality::Medium => 7,
+                Quality::High => 12,
             };
-            let height = 95.0;
-            let rope = if tor.life_frac > 0.75 { 0.45 } else { 1.0 };
-            for _ in 0..per_tick {
-                let f = self.rng.f64();
-                let rf = tor.radius * (0.18 + 0.95 * f.powf(2.2)) * rope;
-                let sway = tor.radius * 0.7 * f * if rope < 1.0 { 2.5 } else { 1.0 };
+            // From the ground to the cloud base above it.
+            let height = (165.0 - p[1]).clamp(45.0, 100.0);
+            let rope = if tor.life_frac > 0.75 { 0.4 } else { 1.0 };
+            let condensed = 0.35 + 0.65 * crate::sim::storm::smoothstep(0.0, 0.15, tor.life_frac);
+            for k in 0..per_tick {
+                // Evenly up the funnel, jittered, a little denser near the ground.
+                let f = ((k as f64 + self.rng.f64()) / per_tick as f64).powf(1.15);
+                if f > condensed && f < 0.97 {
+                    continue; // a forming tornado shows only its top and its debris
+                }
+                let rf = tor.radius * (0.12 + 0.75 * f.powf(1.8)) * rope;
+                let sway = tor.radius * 0.5 * f * if rope < 1.0 { 2.5 } else { 1.0 };
                 let ox = (f * 3.1 + t * 0.021).sin() * sway;
                 let oz = (f * 2.3 + t * 0.017).cos() * sway;
-                let kind = if f < 0.15 { "minecraft:large_smoke" } else { "minecraft:campfire_cosy_smoke" };
-                let cmd = cmds::particle(kind, tor.pos[0] + ox, tor.pos[1] + oz, f * height, rf * 0.5, 2.0, rf * 0.5, 0.01, 4 + (rf / 6.0).min(8.0) as u32);
+                let kind = if f < 0.12 { "minecraft:large_smoke" } else { "minecraft:campfire_cosy_smoke" };
+                let spread = (rf * 0.4).max(0.6);
+                let count = (10.0 + rf * 0.8).min(28.0) as u32;
+                let cmd = cmds::particle(kind, tor.pos[0] + ox, tor.pos[1] + oz, f * height, spread, 1.5, spread, 0.004, count);
                 self.push(cmd);
             }
             if self.ticks % 2 == 0 {
-                let r = tor.radius * 1.4;
-                let cmd = cmds::particle("minecraft:poof", tor.pos[0], tor.pos[1], 1.5, r, 1.5 + tor.ef_now as f64, r, 0.25, 6 + 2 * tor.ef_now as u32);
+                // The dark, lowered cloud base (wall cloud) the funnel hangs from.
+                let r = tor.radius * 3.0 + 12.0;
+                let cmd = cmds::particle("minecraft:large_smoke", tor.pos[0], tor.pos[1], height, r, 3.0, r, 0.0, 40);
                 self.push(cmd);
+            } else {
+                // Dust and debris whirling at the foot.
+                let r = tor.radius * 1.3 + 2.0;
+                let cmd = cmds::particle("minecraft:poof", tor.pos[0], tor.pos[1], 1.5, r, 1.5 + tor.ef_now as f64, r, 0.3, 10 + 3 * tor.ef_now as u32);
+                self.push(cmd);
+            }
+            if d < 300.0 && self.ticks % 15 == 0 && tor.ef_now >= 1 {
+                let at = toward(p, tor.pos, d.min(16.0));
+                let snap = if self.rng.chance(0.5) { "minecraft:block.glass.break" } else { "minecraft:entity.zombie.break_wooden_door" };
+                let pitch = self.rng.range(0.6, 1.0);
+                self.push(cmds::sound(snap, "weather", at, 1.5, pitch));
             }
         }
         if self.cfg.entity_push && d < 250.0 + tor.radius * 4.0 && self.ticks % 2 == 0 {
@@ -330,44 +363,70 @@ impl Tempest {
         }
     }
 
-    /// Wind damage near the player, as `fill ... replace` over small squares.
+    /// Wind damage near the player, as `fill ... replace` over small squares;
+    /// masonry, roofs and trunks fly off as falling-block debris.
     fn damage(&mut self) {
         if !self.cfg.damage || self.storms.is_empty() {
             return;
         }
         let p = self.pos;
         let tf = self.t as f64;
-        let mut samples: Vec<(f64, f64, i32)> = Vec::new();
+        // (x, z, half side of the square, the vortex it belongs to)
+        let mut samples: Vec<(f64, f64, i32, Option<TornadoState>)> = Vec::new();
         for (_, tor) in &self.tors {
             let d = (tor.pos[0] - p[0]).hypot(tor.pos[1] - p[2]);
-            if d > 220.0 + tor.radius * 3.0 {
+            if d > 200.0 + tor.radius * 3.0 {
                 continue; // outside the loaded chunks, most likely
             }
-            let zone = tor.radius * 2.4;
-            for _ in 0..4 {
+            // Where the wind passes EF0: about 1.5 core radii.
+            let zone = tor.radius * 1.6;
+            for _ in 0..5 {
                 let a = self.rng.f64() * std::f64::consts::TAU;
                 let r = zone * self.rng.f64().sqrt();
-                samples.push((tor.pos[0] + r * a.cos(), tor.pos[1] + r * a.sin(), 2));
+                samples.push((tor.pos[0] + r * a.cos(), tor.pos[1] + r * a.sin(), 1, Some(*tor)));
             }
         }
         let (w, _) = field::wind_at(&self.storms, &self.tors, self.env.wind, p[0], p[2], tf);
         if w[0].hypot(w[1]) >= 27.0 {
-            for _ in 0..3 {
+            for _ in 0..2 {
                 let a = self.rng.f64() * std::f64::consts::TAU;
                 let r = 80.0 * self.rng.f64().sqrt();
-                samples.push((p[0] + r * a.cos(), p[2] + r * a.sin(), 1));
+                samples.push((p[0] + r * a.cos(), p[2] + r * a.sin(), 1, None));
             }
         }
+        let species: Vec<u8> = if self.species.is_empty() { vec![0, 1, 2] } else { self.species.clone() };
+        let wood = species[0] as usize;
         let mut plan = Vec::new();
-        for (x, z, half) in samples {
+        let mut debris_left = 3;
+        for (x, z, half, tor) in samples {
             let (w, _) = field::wind_at(&self.storms, &self.tors, self.env.wind, x, z, tf);
             plan.clear();
-            damage::plan_column(w[0].hypot(w[1]), &mut self.rng, &mut plan);
+            damage::plan_column(w[0].hypot(w[1]), &mut self.rng, &species, &mut plan);
+            let (xi, zi) = (x.floor() as i32, z.floor() as i32);
             // A few of the column's edits at a time: the rest come on later passes.
-            for _ in 0..plan.len().min(3) {
+            for _ in 0..plan.len().min(5) {
                 let i = (self.rng.f64() * plan.len() as f64) as usize;
                 let run = plan.swap_remove(i);
-                if !self.push(cmds::damage_fill(x.floor() as i32, z.floor() as i32, half, &run)) {
+                if debris_left > 0 {
+                    let block = match run.filter {
+                        damage::F_PLANKS => Some(format!("minecraft:{}_planks", damage::SPECIES[wood])),
+                        damage::F_LOGS => Some(format!("minecraft:stripped_{}_log", damage::SPECIES[wood])),
+                        f if damage::MASONRY.contains(&f) => damage::single_block(f).map(str::to_string),
+                        _ => None,
+                    };
+                    if let (Some(block), Some(tor)) = (block, tor) {
+                        // Thrown around the vortex (counter-clockwise), inward and up.
+                        let (dx, dz) = (x - tor.pos[0], z - tor.pos[1]);
+                        let r = dx.hypot(dz).max(1.0);
+                        let k = (tor.vmax / 60.0).min(1.6);
+                        let motion = [(dz / r * 0.9 - dx / r * 0.3) * k, 0.6 + 0.5 * k, (-dx / r * 0.9 - dz / r * 0.3) * k];
+                        if !self.push(cmds::debris(xi, zi, -1, &block, motion)) {
+                            return;
+                        }
+                        debris_left -= 1;
+                    }
+                }
+                if !self.push(cmds::damage_fill(xi, zi, half, &run)) {
                     return;
                 }
             }
@@ -418,7 +477,9 @@ impl Tempest {
         if !self.cfg.vanilla_weather {
             return;
         }
+        let tornado_near = self.nearest_tornado().is_some_and(|t| (t.pos[0] - self.pos[0]).hypot(t.pos[1] - self.pos[2]) < 1500.0);
         let want = match field::dominant(&self.storms, self.pos[0], self.pos[2], self.t as f64) {
+            _ if tornado_near => 2,
             Some((i, dbz)) if dbz >= 45.0 && self.storms[i].kind.convective() => 2,
             Some((_, dbz)) if dbz >= 20.0 => 1,
             _ => 0,
@@ -824,6 +885,9 @@ mod tests {
         fn chat(&mut self, text: &str) {
             self.chat.push(text.into());
         }
+        fn look(&self) -> Option<String> {
+            Some("minecraft:spruce_leaves".into())
+        }
     }
 
     #[test]
@@ -841,6 +905,9 @@ mod tests {
         assert!(io.max_batch <= m.cfg.command_budget());
         let has = |s: &str| io.ran.iter().any(|c| c.contains(s));
         assert!(has("run fill "), "damage");
+        assert!(has("stripped_spruce_log[axis=y] replace minecraft:spruce_log"), "debarks the trees it sees");
+        assert!(has("minecraft:coarse_dirt replace minecraft:grass_block"), "ground scouring");
+        assert!(has("summon minecraft:falling_block"), "debris");
         assert!(has("campfire_cosy_smoke"), "funnel");
         assert!(has("raid.horn"), "siren");
         assert!(has("damage @s"), "hurt");

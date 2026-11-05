@@ -112,9 +112,9 @@ impl Cfg {
     /// Commands Tempest may run in one tick (the game runs at most 64).
     pub fn command_budget(&self) -> usize {
         match self.quality {
-            Quality::Low => 14,
-            Quality::Medium => 28,
-            Quality::High => 48,
+            Quality::Low => 26,
+            Quality::Medium => 40,
+            Quality::High => 60,
         }
     }
 }

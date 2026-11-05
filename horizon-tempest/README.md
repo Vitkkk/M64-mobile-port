@@ -41,7 +41,7 @@ O Tempest não é afiliado ao PMWeather nem ao seu autor.
 | Radar | Refletividade (escala de cores tipo NWS) e velocidade radial (verde/vermelho), marcadores de tornado (TVS), alcance ajustável |
 | Anemômetro / estação (METAR) / sondagem | Painel de leitura: temperatura, orvalho, vento e direção, CAPE, SRH, cisalhamento, tipo e taxa de precipitação |
 | Sirene / sensor de tornado | Sirene (som de chifre de raid) e faixa "TORNADO WARNING" quando um tornado está a < 3 km, ou aviso antecipado de rotação |
-| Dano de vento / "scouring" | Folhas, vidro, portas, telhados, troncos, grama raspada até terra/terra grossa, conforme a escala EF |
+| Dano de vento / "scouring" | Por degrau da escala EF: EF0 plantas, neve e copas; EF1 vidro, portas, cercas, lã; EF2 árvores sem folhas e **descascadas** (tronco vira tronco descascado), grama vira terra, telhados arrancados; EF3 chão raspado até **terra grossa**, troncos quebram, tijolo/pedra lisa/tijolo de pedra/pedregulho quebram; EF4–EF5 paredes derrubadas e **buracos de 1 bloco**. Na versão mobile, tijolo, pedra, tábuas e troncos saem voando como blocos em queda e são carregados pelo tornado |
 | Raios | Raios de verdade (do jogo) sob ecos fortes, trovões distantes com atraso pela distância e clarão no céu |
 | Física em entidades | Mobs e itens puxados e erguidos pelo tornado; jogador empurrado pelo vento e erguido no núcleo |
 | Chuva do jogo | A chuva/trovoada vanilla liga e desliga conforme as tempestades sobre os jogadores |
@@ -86,7 +86,7 @@ seção "Trait mods"). Ele precisa de um Horizon recente (que tenha os ganchos
 `world_primitives`, `camera_shake`, `shader_params`, `compute_fog_color` e
 `render_fog` no `mod_api`).
 
-O arquivo pronto é `dist/tempest-0.1.0.hnmod`, fixado no commit
+O arquivo pronto é `dist/tempest-0.2.0.hnmod`, fixado no commit
 `d158e4473623` do Horizon (o mesmo em que foi checado) e aceito pelo
 verificador oficial (`cargo horizon-mod check`). Instale-o pela tela de mods
 do launcher, ou compile a pasta direto:
@@ -107,7 +107,7 @@ mostra tempestades locais só visuais (`fallback = true`).
 Os ports Android não oficiais do Horizon (ex.: "Horizon Android 0.7.x")
 **não compilam mods nativos** (`.hnmod`): eles rodam só `.hmod` com o mod em
 WebAssembly, numa sandbox (API `horizon:mods` 0.1). Para eles existe uma
-versão própria: **`dist/tempest-mobile-0.1.1.hmod`** (pasta `mobile/`).
+versão própria: **`dist/tempest-mobile-0.2.0.hmod`** (pasta `mobile/`).
 
 Instalar: **Installed → Mods → Import**, escolha o `.hmod` e ligue o mod na
 lista (mods começam desligados).
@@ -122,7 +122,7 @@ nem mexer na neblina, então muda o seguinte:
 | Nuvens e funil desenhados com caixas | sim | não; o funil e os detritos são partículas (`/particle`) |
 | Neblina e céu escurecendo | sim | não (a chuva/trovoada vanilla ajuda) |
 | Dano, raios, chuva vanilla, neve, sons, sirene | sim | sim, por comandos (`/fill`, `/summon`, `/weather`, `/playsound`) |
-| Mobs e itens puxados | sim | sim (`/tp` em espiral) |
+| Mobs e itens puxados | sim | sim (`/tp` em espiral), e blocos arrancados voam como detritos |
 | Jogador empurrado pelo vento | sim | só levitação no núcleo do tornado |
 | Comandos | `/tempest` (servidor) e `/radar` (cliente) | tudo em `/tempest` |
 

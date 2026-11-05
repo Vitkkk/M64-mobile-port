@@ -79,6 +79,9 @@ impl Io for Real {
     fn chat(&mut self, text: &str) {
         chat::show(text);
     }
+    fn look(&self) -> Option<String> {
+        hgame::raycast(48.0).map(|h| h.block)
+    }
 }
 
 thread_local! {

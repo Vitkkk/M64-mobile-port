@@ -1,8 +1,11 @@
 # Packs this bundle into a .hnmod (Horizon docs/api/mod-files.md):
-#   python3 tools/pack.py . dist/tempest-0.1.0.hnmod <horizon commit> <horizon-mixins commit>
+#   python3 tools/pack.py . dist/tempest-<version>.hnmod <horizon commit> <horizon-mixins commit>
 import json, os, sys, zipfile
 src, out, rev, mixins = sys.argv[1:5]
-mod_id, version = "tempest", "0.1.0"
+import re
+text = open(os.path.join(src, "horizon-mixin.toml")).read()
+mod_id = re.search(r'^id = "(.*)"', text, re.M).group(1)
+version = re.search(r'^version = "(.*)"', text, re.M).group(1)
 manifest = {"schema": 1, "id": mod_id, "version": version, "game": "26.3", "horizon": rev, "mixins": mixins}
 files = ["horizon-mixin.toml", "README.md", "LICENSE", ".gitignore", "api/Cargo.toml"]
 for root, _, names in os.walk(os.path.join(src, "api", "src")):

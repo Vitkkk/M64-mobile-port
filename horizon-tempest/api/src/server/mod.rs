@@ -71,6 +71,8 @@ pub struct ServerState {
     vanilla_at: i64,
     damage_mode: DamageMode,
     ticks: u64,
+    /// Every wood type: a bulk edit can afford a run each.
+    species: Vec<u8>,
 }
 
 impl Default for ServerState {
@@ -97,6 +99,7 @@ impl Default for ServerState {
             vanilla_at: i64::MIN,
             damage_mode: DamageMode::Full,
             ticks: 0,
+            species: damage::all_species(),
         }
     }
 }
@@ -376,7 +379,7 @@ impl ServerState {
         for (x, z) in columns {
             let speed = self.wind_speed(x as f64 + 0.5, z as f64 + 0.5, &env, self.cfg.hurricane_damage);
             plan.clear();
-            damage::plan_column(speed, &mut self.rng, &mut plan);
+            damage::plan_column(speed, &mut self.rng, &self.species, &mut plan);
             for r in &plan {
                 runs.push((x + r.dx, z + r.dz, *r));
             }
