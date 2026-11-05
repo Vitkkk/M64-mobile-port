@@ -18,3 +18,7 @@ jobs:
         run: horizon-tempest/tools/check.sh
       - name: Clippy
         run: horizon-tempest/tools/check.sh clippy
+      - name: Versão mobile (WebAssembly)
+        run: |
+          rustup target add wasm32-unknown-unknown
+          horizon-tempest/tools/build-mobile.sh

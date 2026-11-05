@@ -1,0 +1,10 @@
+# Turns the wasm32 cdylib into the WebAssembly component Horizon loads,
+# as `cargo horizon-mod build` does (wit-component), and lists its imports.
+[package]
+name = "tempest-componentize"
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+[dependencies]
+wit-component = "0.254"

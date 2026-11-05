@@ -102,12 +102,47 @@ Para o **dano, raios e sincronização**, o mod precisa estar no servidor (no
 singleplayer, o próprio jogo). Num servidor sem o Tempest, o cliente ainda
 mostra tempestades locais só visuais (`fallback = true`).
 
-### Sobre celular
+### No celular (ports Android do Horizon)
 
-Até hoje o Horizon **não tem build oficial para Android** (o roadmap dele trata
-isso como objetivo de longo prazo). O Tempest já vem ajustado para hardware
-fraco e não usa nada específico de desktop, então deve funcionar quando houver
-um build mobile do Horizon — mas isso não pôde ser testado.
+Os ports Android não oficiais do Horizon (ex.: "Horizon Android 0.7.x")
+**não compilam mods nativos** (`.hnmod`): eles rodam só `.hmod` com o mod em
+WebAssembly, numa sandbox (API `horizon:mods` 0.1). Para eles existe uma
+versão própria: **`dist/tempest-mobile-0.1.0.hmod`** (pasta `mobile/`).
+
+Instalar: **Installed → Mods → Import**, escolha o `.hmod` e ligue o mod na
+lista (mods começam desligados).
+
+Ela usa a mesma simulação, mas a API WebAssembly não deixa desenhar no mundo
+nem mexer na neblina, então muda o seguinte:
+
+| | Versão nativa (PC) | Versão mobile (`.hmod`) |
+|---|---|---|
+| Radar, painel de leitura, faixa de alerta | sim | sim |
+| Tremor de câmera | sim | sim |
+| Nuvens e funil desenhados com caixas | sim | não; o funil e os detritos são partículas (`/particle`) |
+| Neblina e céu escurecendo | sim | não (a chuva/trovoada vanilla ajuda) |
+| Dano, raios, chuva vanilla, neve, sons, sirene | sim | sim, por comandos (`/fill`, `/summon`, `/weather`, `/playsound`) |
+| Mobs e itens puxados | sim | sim (`/tp` em espiral) |
+| Jogador empurrado pelo vento | sim | só levitação no núcleo do tornado |
+| Comandos | `/tempest` (servidor) e `/radar` (cliente) | tudo em `/tempest` |
+
+**Os efeitos no mundo precisam de cheats**, porque são comandos rodados
+como você. Ative "Permitir cheats" no mundo (ou abra em LAN com cheats).
+Sem cheats, radar, painel, alertas e tremor continuam funcionando.
+
+Comandos da versão mobile: `/tempest spawn <tipo> [EF]`, `list`, `info`,
+`clear`, `radar`, `vel`, `ref`, `range <m>`, `quality <low|medium|high>`,
+`set <chave> <valor>`, `settings`. Chaves: `quality`, `radar`, `velocity`,
+`info`, `radar_range`, `particles`, `sounds`, `sirens`, `shake`, `damage`,
+`lightning`, `vanilla_weather`, `snow`, `hurt`, `entity_push`, `storm_rate`,
+`tornado_rate`, `seed`, `year_days`. Na qualidade Baixa (padrão) o mod roda
+no máximo 14 comandos por tick.
+
+`mobile/wit/horizon.wit` é a definição da API de mods do Horizon (licença MIT,
+© Ludovic Marie e contribuidores do Horizon), copiada sem alteração.
+
+Gerar o arquivo: `tools/build-mobile.sh` (precisa de
+`rustup target add wasm32-unknown-unknown`).
 
 ## Comandos
 
@@ -174,6 +209,8 @@ horizon-tempest/
   tools/check.sh          # cargo test / clippy contra o stub
   tools/check-horizon.sh  # cargo check / clippy contra um clone do Horizon real
   tools/pack.py           # empacota o .hnmod em dist/
+  tools/build-mobile.sh   # gera o .hmod WebAssembly para os ports Android
+  mobile/                 # a versão WebAssembly (cliente), mesma simulação
 ```
 
 Duas checagens:

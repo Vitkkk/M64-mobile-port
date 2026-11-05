@@ -1,0 +1,8 @@
+package horizon:mods@0.1.0;
+
+// Tempest's world: a client mod (horizon-mod) that also draws on the HUD
+// and shakes the camera (capability render).
+world tempest {
+    include horizon-mod;
+    import render;
+}

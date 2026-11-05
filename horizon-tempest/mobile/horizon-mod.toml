@@ -1,0 +1,9 @@
+id = "tempest"
+name = "Tempest"
+version = "0.1.0"
+description = "Supercells, tornadoes (EF0-EF5), squall lines, hurricanes, blizzards and a Doppler radar. Light, made for phones. World effects (damage, lightning, rain, particles, sounds) need cheats: they run as your commands."
+authors = ["Tempest contributors"]
+api = "0.1"
+side = "client"
+capabilities = ["game-read", "chat", "storage", "command", "render"]
+experimental = ["render"]
