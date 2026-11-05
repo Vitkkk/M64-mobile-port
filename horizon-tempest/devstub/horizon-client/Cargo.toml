@@ -1,0 +1,13 @@
+# A stand-in for Horizon's `horizon-client`, with only the part of
+# `horizon_client::mod_api` Tempest uses, copied from the signatures in
+# Horizon's sources (native_hooks.rs, native-hooks.json and the generator's
+# rules). It lets `tools/check.sh` type-check and test the mod without
+# building the whole game. The launcher builds the real thing.
+[package]
+name = "horizon-client"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[lib]
+path = "src/lib.rs"

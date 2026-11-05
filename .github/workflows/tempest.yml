@@ -1,0 +1,20 @@
+name: Tempest (mod do Horizon)
+
+on:
+  push:
+    paths: ["horizon-tempest/**", ".github/workflows/tempest.yml"]
+  pull_request:
+    paths: ["horizon-tempest/**", ".github/workflows/tempest.yml"]
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - name: Testes (contra o stub da API de mods)
+        run: horizon-tempest/tools/check.sh
+      - name: Clippy
+        run: horizon-tempest/tools/check.sh clippy

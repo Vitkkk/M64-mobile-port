@@ -1,0 +1,9 @@
+# Tempest: a native trait mod for Horizon (docs/native-mods.md, "Trait mods").
+# Build it with:
+#   horizon-launcher native-build <this folder> --instance <instance> --trust-native-code
+[mod]
+id = "tempest"
+version = "0.1.0"
+
+[api]
+path = "api"
