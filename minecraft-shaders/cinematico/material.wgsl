@@ -1,7 +1,6 @@
 // O terreno: luz do sol e da lua com sombras suaves, luz do ceu, tochas coloridas, brilho
 // especular (PBR), chao molhado, folhas translucidas, agua com reflexo/refracao/causticas e a
-// neblina atmosferica. Os ids MAT_* e as opcoes de vento/ondas estao em vertex.wgsl, que
-// entra neste mesmo modulo.
+// neblina atmosferica.
 
 override quality: u32 = 2u;
 override shadows: bool = true;
@@ -10,12 +9,24 @@ override ambient_strength: f32 = 1.0;
 override torch_strength: f32 = 1.0;
 override colored_lights: bool = true;
 override foliage_glow: f32 = 0.6;
-override auto_bump: bool = true;
 override wet_reflections: bool = true;
 override water_reflections: bool = true;
 override water_clarity: f32 = 1.0;
 override caustics: bool = true;
 override haze: f32 = 1.0;
+override water_waves: f32 = 1.0;
+
+// Os ids de [[materials]] em horizon-shaders.toml.
+const MAT_LEAVES: u32 = 1u;
+const MAT_PLANT: u32 = 2u;
+const MAT_PLANT_TOP: u32 = 3u;
+const MAT_VINE: u32 = 4u;
+const MAT_PLANT_LOW: u32 = 5u;
+const MAT_WATER: u32 = 20u;
+const MAT_GLASS: u32 = 30u;
+const MAT_ICE: u32 = 31u;
+const MAT_METAL: u32 = 40u;
+const MAT_POLISHED: u32 = 41u;
 
 const TORCH_COLOR: vec3f = vec3f(1.0, 0.56, 0.24);
 
@@ -214,6 +225,14 @@ fn finish(hdr: vec3f, pos: vec3f) -> vec3f {
 
 // ---------------------------------------------------------------- agua
 
+// A altura das ondas num ponto do mundo: tres trens de onda em direcoes diferentes.
+fn wave_height(w: vec2f, t: f32) -> f32 {
+    var h = sin(dot(w, vec2f(0.8, 0.6)) * 1.3 + t * 1.6) * 0.5;
+    h += sin(dot(w, vec2f(-0.5, 0.85)) * 2.1 + t * 2.3) * 0.3;
+    h += sin(dot(w, vec2f(0.95, -0.3)) * 3.7 + t * 3.1) * 0.2;
+    return h;
+}
+
 fn water_normal(world: vec3f, dist: f32) -> vec3f {
     let t = frame.time;
     let e = 0.05;
@@ -307,58 +326,25 @@ fn material(input: MaterialInput) -> Surface {
     var albedo = to_linear(input.albedo.rgb * tint);
     var alpha = input.albedo.a * input.tint.a;
 
-    // ------------------------------------------------ PBR: normal, lisura, F0, emissao
+    // ------------------------------------------------ brilho especular por tipo de bloco
     var n = geo_n;
     var smooth_s = 0.0;
     var f0 = vec3f(0.04);
-    var ao = 1.0;
-    var emission = 0.0;
-    var porosity = 0.5;
-    let t = input.tangent.xyz;
-    let b = cross(geo_n, t) * input.tangent.w;
-    if block_pbr_maps() {
-        let nm = block_normal_map(input.uv);
-        let xy = nm.xy * 2.0 - 1.0;
-        let z = sqrt(max(1.0 - dot(xy, xy), 0.0));
-        n = normalize(t * xy.x + b * xy.y + geo_n * z);
-        ao = nm.z;
-        let sp = block_specular_map(input.uv);
-        smooth_s = sp.r;
-        if sp.g * 255.0 >= 229.5 {
-            f0 = albedo;
-        } else {
-            f0 = vec3f(max(sp.g, 0.02));
-        }
-        porosity = select(sp.b * 255.0 / 64.0, 0.0, sp.b * 255.0 > 64.5);
-        emission = select(sp.a, 0.0, sp.a > 0.998);
-    } else {
-        if auto_bump && !input.translucent && input.fluid == 0u && !foliage && dist < 40.0 {
-            // Relevo gerado da propria textura: claro = alto, escuro = baixo.
-            let ts = block_texture_size();
-            let lod = block_texture_lod();
-            let du = vec2f(1.0 / ts.x, 0.0);
-            let dv = vec2f(0.0, 1.0 / ts.y);
-            let hc = luma(input.albedo.rgb);
-            let hu = luma(block_texture_level(input.uv + du, lod).rgb);
-            let hv = luma(block_texture_level(input.uv + dv, lod).rgb);
-            let k = 0.9 * (1.0 - smoothstep(16.0, 40.0, dist));
-            n = normalize(geo_n - (t * (hu - hc) + b * (hv - hc)) * k);
-        }
-        // Valores tipicos por tipo de bloco.
-        if m == MAT_METAL {
-            smooth_s = 0.72;
-            f0 = mix(vec3f(0.5), albedo * 1.4, 0.7);
-        } else if m == MAT_POLISHED {
-            smooth_s = 0.42;
-        } else if m == MAT_GLASS {
-            smooth_s = 0.96;
-        } else if m == MAT_ICE {
-            smooth_s = 0.9;
-            f0 = vec3f(0.03);
-        }
-        if foliage {
-            smooth_s = 0.25;
-        }
+    let ao = 1.0;
+    let porosity = 0.5;
+    if m == MAT_METAL {
+        smooth_s = 0.72;
+        f0 = mix(vec3f(0.5), albedo * 1.4, 0.7);
+    } else if m == MAT_POLISHED {
+        smooth_s = 0.42;
+    } else if m == MAT_GLASS {
+        smooth_s = 0.96;
+    } else if m == MAT_ICE {
+        smooth_s = 0.9;
+        f0 = vec3f(0.03);
+    }
+    if foliage {
+        smooth_s = 0.25;
     }
 
     // ------------------------------------------------ chuva: chao molhado e pocas
@@ -427,17 +413,14 @@ fn material(input: MaterialInput) -> Surface {
     // De dia, a luz das tochas some no sol.
     let day_wash = select(1.0, 1.0 - day_factor() * smoothstep(0.7, 1.0, sky_light) * 0.7, overworld());
     hdr += albedo * block_col * block_falloff * torch_strength * day_wash * ao;
-    hdr += albedo * input.colored_light * 2.0 * torch_strength;
 
     // Um minimo de luz para cavernas nunca ficarem 100% pretas (segue o Brilho do jogo).
     hdr += albedo * (0.0025 + frame.brightness * 0.012) * ao;
 
     // Blocos que emitem luz: as partes claras da textura brilham de verdade.
-    let emissive = max(input.emission, emission);
-    if emissive > 0.0 {
+    if input.emission > 0.0 {
         let bright = smoothstep(0.35, 0.85, max(input.albedo.r, max(input.albedo.g, input.albedo.b)));
-        let e = select(bright * input.emission, emission, emission > 0.0);
-        hdr += albedo * e * 6.0;
+        hdr += albedo * bright * input.emission * 6.0;
     }
     if input.fluid == 2u {
         hdr = albedo * 5.0;

@@ -1,7 +1,5 @@
-// Cor de cinema: soma o bloom e os raios de sol, ajusta o balanco de branco pela hora do dia
-// e aplica o estilo de cor (contraste em S, split toning, saturacao).
-override bloom: f32 = 0.5;
-override light_shafts: f32 = 0.7;
+// Cor de cinema: ajusta o balanco de branco pela hora do dia e aplica o estilo de cor
+// (contraste em S, split toning, saturacao).
 override color_style: u32 = 1u;
 override saturation: f32 = 1.05;
 override contrast: f32 = 1.1;
@@ -15,16 +13,6 @@ fn soft_light(base: vec3f, blend: vec3f) -> vec3f {
 fn post(input: PostInput) -> vec4<f32> {
     var lin = to_linear(input.color.rgb);
 
-    // Bloom: o halo proximo e o largo.
-    if bloom > 0.0 {
-        let near = textureSampleLevel(bloom_half, linear_sampler, input.uv, 0.0).rgb;
-        let wide = textureSampleLevel(bloom_wide, linear_sampler, input.uv, 0.0).rgb;
-        lin += (near * 0.45 + wide * 0.9) * bloom;
-    }
-    // Raios de sol.
-    if light_shafts > 0.0 {
-        lin += textureSampleLevel(shafts, linear_sampler, input.uv, 0.0).rgb * 0.6;
-    }
     // Debaixo d'agua: a luz perde o vermelho.
     lin *= mix(vec3f(1.0), vec3f(0.55, 0.85, 1.0), frame.in_water);
 

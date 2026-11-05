@@ -10,7 +10,7 @@ Visual cinematográfico e realista, com opções para rodar do celular ao PC.
 - A luz que passa por água, vidro colorido e gelo ganha a cor deles
 - Luz do céu realista: sombras azuladas de dia e um "bounce" quente do chão
 - Tochas com queda de luz realista e **luz colorida**: alma azul, redstone vermelha, lava
-  laranja, ametista roxa, froglights, tochas de cobre verdes, vaga-lumes
+  laranja, ametista roxa, froglights, tochas de cobre verdes
 - Exposição automática: os olhos se adaptam em cavernas e à noite
 - Folhas e plantas translúcidas: brilham quando você olha contra o sol
 
@@ -25,17 +25,15 @@ Visual cinematográfico e realista, com opções para rodar do celular ao PC.
 - Reflexo real do mundo, com Fresnel (mais espelho de longe, transparente de perto)
 - Refração: o fundo se deforma com as ondas
 - Absorção pela profundidade (rasinho = cristalino, fundo = azul escuro) na cor da água do bioma
-- Ondas de verdade na geometria e brilho do sol nas ondas
+- Ondas animadas na superfície e brilho do sol nelas
 - Cáusticas: a rede de luz no fundo da água
 
-**Mundo vivo**
-- Vento nas folhas, na grama, nas flores, nas plantações e nas trepadeiras, mais forte em tempestades
+**Superfícies**
 - Chão molhado e poças na chuva, com reflexo do céu
-- Relevo gerado das texturas (ou mapas LabPBR completos se você usar um resource pack PBR)
 - Brilho especular em metais, gemas, vidro, gelo e pedras polidas
 
 **Câmera de cinema**
-- Bloom em duas camadas (halo próximo + halo largo)
+- Bloom gaussiano largo (dois passes, horizontal e vertical)
 - Raios de sol volumétricos (god rays) recortados por árvores e montanhas
 - Profundidade de campo com foco automático e bokeh (opcional)
 - Desfoque de movimento da câmera (opcional)
@@ -50,7 +48,10 @@ Visual cinematográfico e realista, com opções para rodar do celular ao PC.
 3. Coloque lá **a pasta `cinematico` inteira** (ou o arquivo `cinematico-1.0.0.hshader`).
 4. Volte à tela e clique em **Cinematico (Horizon)**. Clicar de novo desliga.
 5. **Shader Options...** no topo da tela abre as opções em páginas: Luz e sombra, Água,
-   Céu e vento, Câmera, Cor e filme, Desempenho.
+   Céu, Câmera, Cor e filme.
+
+No **Horizon Android** dá também para importar pelo launcher: aba **Installed → Shaders →
+Import**, escolhendo o `.hshader`.
 
 O jogo confere o pack antes de carregar. Se algo falhar, o erro aparece no chat com arquivo e
 linha, e a imagem do jogo continua normal. Enquanto o pack está ligado o jogo recarrega os
@@ -68,10 +69,10 @@ horizon-shader pack cinematico      # gera cinematico-1.0.0.hshader
 
 O renderizador é o mesmo, então o pack funciona igual. Para não pesar:
 
-- **Qualidade: Leve (celular)**
-- **Desempenho > Resolução das sombras: 1024** e **Distância das sombras: 64**
+- **Qualidade: Leve (celular)** ou **Médio**
 - **Água > Reflexos na água: desligado** (é o que mais pesa: desenha o mundo duas vezes)
-- Se ainda estiver lento, desligue **Sombras**. O céu, a água, o bloom e as cores continuam.
+- **Luz e sombra > Sombras: desligado** se ainda estiver lento. O céu, a água, o bloom e as
+  cores continuam.
 
 ## Dicas para print/vídeo cinematográfico
 
@@ -88,13 +89,19 @@ O renderizador é o mesmo, então o pack funciona igual. Para não pesar:
 | `common.wgsl` | atmosfera, cor do sol, luz do céu, exposição e curva ACES (compartilhado) |
 | `sky.wgsl` | céu e sol |
 | `material.wgsl` | iluminação do terreno, sombras, PBR, chuva, água, neblina |
-| `vertex.wgsl` | vento nas plantas e ondas |
 | `weather.wgsl` | chuva e neve |
-| `post/bloom_prefilter.wgsl`, `post/bloom_wide.wgsl` | bloom |
-| `post/light_shafts.wgsl` | raios de sol |
-| `post/lens.wgsl` | profundidade de campo e desfoque de movimento |
-| `post/color.wgsl` | composição e color grading |
+| `post/bloom_h.wgsl`, `post/bloom_v.wgsl` | bloom |
+| `post/lens.wgsl` | profundidade de campo, desfoque de movimento, bloom e raios de sol |
+| `post/color.wgsl` | balanço de branco e color grading |
 | `post/final.wgsl` | FXAA, nitidez, aberração, vinheta, grão, barras |
 
-Requer Horizon com a API de shader 0.1 (Nightly de novembro de 2026 em diante: precisa do
-`[[post]] output`, `[shadow] option` e `[[particle_lights]]`).
+## Compatibilidade
+
+Feito para a API de shader 0.1 como ela estava no Horizon de 1º de novembro de 2026 (merge
+`bfa86ce98`, o primeiro com `[[lights]]` e `[material] fog`). É essa a versão do motor do
+**Horizon Android 0.7.7**, e o pack também funciona nas versões mais novas do Horizon.
+
+O pack não usa o que veio depois dessa data, porque o Horizon Android 0.7.7 recusaria:
+`[vertex]` (vento nas plantas e ondas na geometria), `[[particle_lights]]`, os alvos
+`output`/`scale` dos passes de pós, os mapas LabPBR e as opções que desligam e dimensionam o
+mapa de sombra.

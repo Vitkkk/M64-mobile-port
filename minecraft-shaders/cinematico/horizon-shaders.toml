@@ -1,9 +1,9 @@
 schema = 1
 id = "cinematico"
 name = "Cinematico"
-version = "1.0.0"
+version = "1.1.0"
 api = "0.1"
-description = "Visual cinematografico e realista: ceu atmosferico, sol redondo, sombras suaves, agua com reflexo, refracao e causticas, folhas ao vento, bloom, raios de sol e color grading de filme."
+description = "Visual cinematografico e realista: ceu atmosferico, sol redondo, sombras suaves, agua com reflexo, refracao e causticas, bloom, raios de sol e color grading de filme."
 authors = ["vitkkk"]
 license = "MIT"
 shared = ["common.wgsl"]
@@ -20,43 +20,27 @@ file = "material.wgsl"
 name = "Terreno"
 fog = false        # o pack aplica a propria neblina atmosferica
 
-[vertex]
-file = "vertex.wgsl"
-
 [weather]
 file = "weather.wgsl"
 
 [shadow]
 resolution = 2048
-distance = 128.0
-option = "shadows"
-resolution_option = "shadow_resolution"
-distance_option = "shadow_distance"
+distance = 112.0
 
 [reflection]
 option = "water_reflections"
 
 [[post]]
-file = "post/bloom_prefilter.wgsl"
-name = "Bloom (brilho)"
-output = "bloom_half"
-scale = 0.5
+file = "post/bloom_h.wgsl"
+name = "Bloom (horizontal)"
 
 [[post]]
-file = "post/bloom_wide.wgsl"
-name = "Bloom (halo largo)"
-output = "bloom_wide"
-scale = 0.25
-
-[[post]]
-file = "post/light_shafts.wgsl"
-name = "Raios de sol"
-output = "shafts"
-scale = 0.5
+file = "post/bloom_v.wgsl"
+name = "Bloom (vertical)"
 
 [[post]]
 file = "post/lens.wgsl"
-name = "Lente (foco e movimento)"
+name = "Lente, bloom e raios de sol"
 
 [[post]]
 file = "post/color.wgsl"
@@ -67,15 +51,15 @@ file = "post/final.wgsl"
 name = "Acabamento (FXAA, grao, vinheta)"
 
 [budget]
-gpu_ms = 4.0
+gpu_ms = 3.5
 
 # ---------------------------------------------------------------- materiais (ids por sprite)
 
-[[materials]]                   # folhas: balancam e deixam a luz atravessar
+[[materials]]                   # folhas: deixam a luz atravessar
 id = 1
 sprites = ["block/*_leaves", "block/*_leaves_*"]
 
-[[materials]]                   # plantas baixas: presas no chao, a ponta balanca
+[[materials]]                   # plantas baixas
 id = 2
 sprites = [
   "block/short_grass", "block/fern", "block/dead_bush", "block/bush", "block/firefly_bush",
@@ -182,11 +166,6 @@ blocks = ["lava", "magma_block", "lava_cauldron"]
 color = [0.7, 0.35, 1.0]
 blocks = ["amethyst_cluster", "*_amethyst_bud", "crying_obsidian", "respawn_anchor", "nether_portal", "end_gateway", "end_portal", "ender_chest", "enchanting_table"]
 
-[[particle_lights]]
-particles = ["firefly"]
-color = [0.75, 0.95, 0.35]
-reach = 3.0
-
 # ---------------------------------------------------------------- opcoes
 
 [[options]]
@@ -200,23 +179,9 @@ default = "Alto"
 [[options]]
 id = "shadows"
 name = "Sombras"
-description = "Sombras reais do sol e da lua. Desligar ganha muito desempenho."
+description = "Sombras reais do sol e da lua. Desligado, o jogo ainda desenha o mapa de sombra, mas o terreno deixa de le-lo."
 type = "bool"
 default = true
-
-[[options]]
-id = "shadow_resolution"
-name = "Resolucao das sombras"
-type = "choice"
-values = ["1024", "2048", "3072", "4096"]
-default = "2048"
-
-[[options]]
-id = "shadow_distance"
-name = "Distancia das sombras"
-type = "choice"
-values = ["64", "96", "128", "192", "256"]
-default = "128"
 
 [[options]]
 id = "shadow_softness"
@@ -274,13 +239,6 @@ max = 1.0
 step = 0.05
 
 [[options]]
-id = "auto_bump"
-name = "Relevo nas texturas"
-description = "Gera relevo a partir da textura quando nao ha pack PBR (LabPBR). Com pack PBR, usa os mapas dele."
-type = "bool"
-default = true
-
-[[options]]
 id = "wet_reflections"
 name = "Chao molhado na chuva"
 description = "Pocas e brilho molhado quando chove."
@@ -318,21 +276,6 @@ name = "Causticas"
 description = "O desenho da luz do sol no fundo da agua."
 type = "bool"
 default = true
-
-[[options]]
-id = "waving"
-name = "Vento nas plantas"
-type = "bool"
-default = true
-
-[[options]]
-id = "wind_strength"
-name = "Forca do vento"
-type = "float"
-default = 1.0
-min = 0.0
-max = 2.5
-step = 0.05
 
 [[options]]
 id = "haze"
@@ -497,13 +440,13 @@ step = 0.05
 [[pages]]
 id = "main"
 name = "Cinematico"
-items = ["quality", "color_style", "page:light", "page:water", "page:sky", "page:camera", "page:color", "page:performance"]
+items = ["quality", "color_style", "page:light", "page:water", "page:sky", "page:camera", "page:color"]
 
 [[pages]]
 id = "light"
 name = "Luz e sombra"
 description = "Sol, ceu, tochas e sombras."
-items = ["sun_strength", "ambient_strength", "torch_strength", "colored_lights", "shadow_softness", "foliage_glow", "auto_bump", "wet_reflections"]
+items = ["sun_strength", "ambient_strength", "torch_strength", "colored_lights", "shadows", "shadow_softness", "foliage_glow", "wet_reflections"]
 
 [[pages]]
 id = "water"
@@ -513,9 +456,9 @@ items = ["water_reflections", "caustics", "water_waves", "water_clarity"]
 
 [[pages]]
 id = "sky"
-name = "Ceu e vento"
-description = "Sol, neblina e plantas ao vento."
-items = ["sun_size", "haze", "waving", "wind_strength"]
+name = "Ceu"
+description = "Sol e neblina atmosferica."
+items = ["sun_size", "haze"]
 
 [[pages]]
 id = "camera"
@@ -528,9 +471,3 @@ id = "color"
 name = "Cor e filme"
 description = "Grading, grao, vinheta e barras de cinema."
 items = ["saturation", "contrast", "vignette", "film_grain", "chromatic", "sharpen", "letterbox", "fxaa"]
-
-[[pages]]
-id = "performance"
-name = "Desempenho"
-description = "O que mais pesa: sombras e reflexos."
-items = ["shadows", "shadow_resolution", "shadow_distance", ""]
