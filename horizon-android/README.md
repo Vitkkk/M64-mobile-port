@@ -16,9 +16,9 @@ desenhando com Vulkan (ou OpenGL ES) pelo wgpu.
 
 Renderizadas pelo Robolectric a partir do código real (`./gradlew testDebugUnitTest -Pzenith.screenshots`):
 
-| Início | Conta e skin | Controles | Gráficos |
-|---|---|---|---|
-| ![](docs/screens/01-inicio.png) | ![](docs/screens/04-conta.png) | ![](docs/screens/05-controles.png) | ![](docs/screens/07-graficos.png) |
+| Início (BAIXAR) | Nova instância | Conta e skin | Controles | Gráficos |
+|---|---|---|---|---|
+| ![](docs/screens/01-inicio.png) | ![](docs/screens/02b-nova-instancia.png) | ![](docs/screens/04-conta.png) | ![](docs/screens/05-controles.png) | ![](docs/screens/07-graficos.png) |
 
 ![Editor de controles](docs/screens/08-editor-controles.png)
 

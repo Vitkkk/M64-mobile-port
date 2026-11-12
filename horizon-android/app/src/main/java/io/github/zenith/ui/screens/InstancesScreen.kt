@@ -1,6 +1,10 @@
 package io.github.zenith.ui.screens
 
+import androidx.activity.compose.BackHandler
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.Download
@@ -74,6 +78,40 @@ fun InstancesScreen(vm: LauncherViewModel) {
     val startInstall = rememberInstallStarter()
     val context = LocalContext.current
 
+    if (creating || editing != null) {
+        // A página de criar/editar ocupa a aba; a lista volta ao terminar.
+        if (creating) InstanceEditor(null, onDismiss = { creating = false }, onSaveAndInstall = { name, color, icon, extra ->
+            creating = false
+            vm.work("Criando $name…") {
+                val created = InstanceStore.create(name, color, icon, copyOptionsFrom = vm.instance)
+                InstanceStore.save(extra(created))
+                vm.settings.selectedInstance = created.id
+            }
+            if (!vm.resources.ready && !Installer.state.value.running) {
+                if (Installer.blocker(context) == null) startInstall() else installHint = true
+            }
+        }) { name, color, icon, extra ->
+            creating = false
+            vm.work("Criando $name…") {
+                val created = InstanceStore.create(name, color, icon, copyOptionsFrom = vm.instance)
+                InstanceStore.save(extra(created))
+                vm.settings.selectedInstance = created.id
+            }
+        }
+        editing?.let { inst ->
+            InstanceEditor(inst, onDismiss = { editing = null }) { name, color, icon, extra ->
+                editing = null
+                vm.work("Salvando…") { InstanceStore.save(extra(inst.copy(name = name, color = color, icon = icon))) }
+            }
+        }
+        if (installHint) AlertDialog(
+            onDismissRequest = { installHint = false },
+            title = { Text("Não deu para baixar ainda") },
+            text = { Text(Installer.blocker(context) ?: "") },
+            confirmButton = { TextButton(onClick = { installHint = false }) { Text("OK") } },
+        )
+        return
+    }
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)) {
             item {
@@ -146,36 +184,12 @@ fun InstancesScreen(vm: LauncherViewModel) {
         )
     }
 
-    if (creating) InstanceDialog(null, onDismiss = { creating = false }, onSaveAndInstall = { name, color, icon, extra ->
-        creating = false
-        vm.work("Criando $name…") {
-            val created = InstanceStore.create(name, color, icon, copyOptionsFrom = vm.instance)
-            InstanceStore.save(extra(created))
-            vm.settings.selectedInstance = created.id
-        }
-        if (!vm.resources.ready && !Installer.state.value.running) {
-            if (Installer.blocker(context) == null) startInstall() else installHint = true
-        }
-    }) { name, color, icon, extra ->
-        creating = false
-        vm.work("Criando $name…") {
-            val created = InstanceStore.create(name, color, icon, copyOptionsFrom = vm.instance)
-            InstanceStore.save(extra(created))
-            vm.settings.selectedInstance = created.id
-        }
-    }
     if (installHint) AlertDialog(
         onDismissRequest = { installHint = false },
         title = { Text("Não deu para baixar ainda") },
         text = { Text(Installer.blocker(context) ?: "") },
         confirmButton = { TextButton(onClick = { installHint = false }) { Text("OK") } },
     )
-    editing?.let { inst ->
-        InstanceDialog(inst, onDismiss = { editing = null }) { name, color, icon, extra ->
-            editing = null
-            vm.work("Salvando…") { InstanceStore.save(extra(inst.copy(name = name, color = color, icon = icon))) }
-        }
-    }
     deleting?.let { inst ->
         AlertDialog(
             onDismissRequest = { deleting = null },
@@ -188,7 +202,7 @@ fun InstancesScreen(vm: LauncherViewModel) {
 }
 
 @Composable
-private fun InstanceDialog(
+private fun InstanceEditor(
     initial: Instance?,
     onDismiss: () -> Unit,
     onSaveAndInstall: ((String, Long, String, (Instance) -> Instance) -> Unit)? = null,
@@ -206,12 +220,14 @@ private fun InstanceDialog(
     var args by remember { mutableStateOf(initial?.extraArgs ?: "") }
     var layout by remember { mutableStateOf(initial?.layout ?: "") }
     @Composable fun item(content: @Composable () -> Unit) = content()
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Nova instância" else "Editar instância") },
-        text = {
-            // Column com rolagem, não LazyColumn: a lista é curta e o AlertDialog mede o conteúdo.
-            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+    BackHandler(onBack = onDismiss)
+    // Uma página, não um diálogo: Criar instância → versão → BAIXAR, como nos launchers Java do celular.
+    Column(Modifier.fillMaxSize()) {
+        Row(Modifier.fillMaxWidth().padding(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onDismiss) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Voltar") }
+            Text(if (initial == null) "Nova instância" else "Editar instância", style = MaterialTheme.typography.headlineSmall)
+        }
+            Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 item { OutlinedTextField(name, { name = it.take(32) }, label = { Text("Nome") }, singleLine = true) }
                 item {
                     ChoiceRow(
@@ -223,8 +239,8 @@ private fun InstanceDialog(
                 }
                 item {
                     Text("Ícone", style = MaterialTheme.typography.labelLarge)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(Instance.ICONS) { k ->
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Instance.ICONS.forEach { k ->
                             Box(Modifier.clip(RoundedCornerShape(10.dp)).border(if (k == icon) 2.dp else 0.dp, MaterialTheme.colorScheme.primary, RoundedCornerShape(10.dp)).clickable { icon = k }) {
                                 BlockIcon(k, Color(color), 44.dp)
                             }
@@ -233,8 +249,8 @@ private fun InstanceDialog(
                 }
                 item {
                     Text("Cor", style = MaterialTheme.typography.labelLarge)
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        items(Instance.COLORS) { c ->
+                    Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Instance.COLORS.forEach { c ->
                             Box(
                                 Modifier.size(32.dp).clip(CircleShape).background(Color(c))
                                     .border(if (c == color) 3.dp else 0.dp, MaterialTheme.colorScheme.onSurface, CircleShape)
@@ -256,20 +272,22 @@ private fun InstanceDialog(
                     item { OutlinedTextField(args, { args = it }, label = { Text("Argumentos extras do jogo") }, supportingText = { Text("Ex.: --render-distance 6 --pregen") }) }
                 }
             }
-        },
-        confirmButton = {
-            val extra: (Instance) -> Instance = { it.copy(quickServer = server, quickWorld = world, extraArgs = args, layout = layout, version = version) }
-            Row {
-                TextButton(enabled = name.isNotBlank(), onClick = { onSave(name.trim(), color, icon, extra) }) {
-                    Text(if (initial == null) "Criar" else "Salvar")
+        val extra: (Instance) -> Instance = { it.copy(quickServer = server, quickWorld = world, extraArgs = args, layout = layout, version = version) }
+        Row(
+            Modifier.fillMaxWidth().padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            if (onSaveAndInstall != null) {
+                OutlinedButton(enabled = name.isNotBlank(), onClick = { onSave(name.trim(), color, icon, extra) }) { Text("Só criar") }
+                Button(enabled = name.isNotBlank(), onClick = { onSaveAndInstall(name.trim(), color, icon, extra) }) {
+                    Icon(Icons.Filled.Download, null); Spacer(Modifier.width(6.dp))
+                    Text("Criar e BAIXAR", fontWeight = FontWeight.Black)
                 }
-                if (onSaveAndInstall != null) {
-                    Button(enabled = name.isNotBlank(), onClick = { onSaveAndInstall(name.trim(), color, icon, extra) }) {
-                        Text("Criar e BAIXAR", fontWeight = FontWeight.Black)
-                    }
-                }
+            } else {
+                Button(enabled = name.isNotBlank(), onClick = { onSave(name.trim(), color, icon, extra) }) { Text("Salvar") }
             }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
-    )
+        }
+    }
 }

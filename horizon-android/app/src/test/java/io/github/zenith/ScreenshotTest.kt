@@ -70,14 +70,14 @@ class ScreenshotTest {
     fun screens() {
         shot("01-inicio")
         tab("Instâncias"); shot("02-instancias")
-        // O diálogo de nova instância abre e fecha sem travar (uma LazyColumn dentro do
-        // AlertDialog o deixava recompondo sem parar). É outra janela: não entra no print.
+        // Nova instância é uma página (antes um AlertDialog, que travava com listas dentro).
         compose.onAllNodesWithText("Nova instância", useUnmergedTree = true)[0].performClick()
-        compose.waitForIdle()
+        compose.mainClock.advanceTimeBy(600)
         compose.onAllNodesWithText("Criar e BAIXAR")[0].assertExists()
         compose.onAllNodesWithText("Versão do Minecraft")[0].assertExists()
+        shot("02b-nova-instancia")
         compose.onAllNodesWithText("Cancelar")[0].performClick()
-        compose.waitForIdle()
+        compose.mainClock.advanceTimeBy(600)
         tab("Mods"); shot("03-mods")
         tab("Conta"); shot("04-conta")
         tab("Controles"); shot("05-controles")
