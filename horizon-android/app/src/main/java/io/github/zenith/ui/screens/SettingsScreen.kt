@@ -59,7 +59,9 @@ import io.github.zenith.data.GameOptions
 import io.github.zenith.data.GameResources
 import io.github.zenith.data.Paths
 import io.github.zenith.game.GameLauncher
+import io.github.zenith.install.Installer
 import io.github.zenith.ui.LauncherViewModel
+import io.github.zenith.ui.components.InstallPanel
 import io.github.zenith.ui.components.ChoiceRow
 import io.github.zenith.ui.components.NavRow
 import io.github.zenith.ui.components.Section
@@ -104,7 +106,7 @@ private val PAGES = listOf(
     "graphics" to "Gráficos e desempenho",
     "game" to "Jogo",
     "sound" to "Som",
-    "resources" to "Recursos do jogo",
+    "resources" to "Instalar o jogo",
     "microsoft" to "Conta Microsoft",
     "launcher" to "Aparência do launcher",
     "api" to "Avançado e API",
@@ -118,7 +120,7 @@ private fun Root(open: (String) -> Unit) {
         NavRow("Gráficos e desempenho", "API gráfica, resolução, FPS, distância, presets", Icons.Filled.Speed) { open("graphics") }
         NavRow("Jogo", "Idioma, pulo automático, agachar/correr", Icons.Filled.SportsEsports) { open("game") }
         NavRow("Som", "Volume por categoria", Icons.Filled.VolumeUp) { open("sound") }
-        NavRow("Recursos do jogo", "Importar os arquivos preparados da sua cópia", Icons.Filled.Folder) { open("resources") }
+        NavRow("Instalar o jogo", "Baixar e preparar no celular, ou importar um ZIP", Icons.Filled.Folder) { open("resources") }
     }
     Section("Launcher") {
         NavRow("Conta Microsoft", "Client ID do Azure, verificação de posse", Icons.Filled.Key) { open("microsoft") }
@@ -247,7 +249,16 @@ private fun ResourcesPage(vm: LauncherViewModel) {
             vm.toast("Recursos importados")
         }
     }
-    Section("Estado", subtitle = "Minecraft ${BuildConfig.GAME_VERSION} · ${GameResources.dir().path}") {
+    InstallPanel(vm, title = "Baixar e instalar no celular")
+    var cache by remember(vm.busy) { mutableStateOf(-1L) }
+    androidx.compose.runtime.LaunchedEffect(vm.busy) {
+        cache = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Installer.cacheSize() }
+    }
+    if (cache > 0) Section("Arquivos da instalação", subtitle = "Downloads guardados, o Java temporário e o log") {
+        Text("Ocupam ${formatBytes(cache)}. Os recursos instalados não são apagados.", style = MaterialTheme.typography.bodySmall)
+        TextButton(onClick = { vm.work("Limpando…") { Installer.clearCache() } }) { Text("Limpar") }
+    }
+    Section("Avançado: importar recursos preparados no PC", subtitle = "Minecraft ${BuildConfig.GAME_VERSION} · ${GameResources.dir().path}") {
         Text(status.message, color = if (status.ready) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         if (status.sizeBytes > 0) Text("Tamanho: ${formatBytes(status.sizeBytes)}" + (status.outputVersion?.let { " · formato $it" } ?: ""))
         Spacer(Modifier.height(8.dp))
@@ -257,7 +268,7 @@ private fun ResourcesPage(vm: LauncherViewModel) {
         }
         if (status.sizeBytes > 0) TextButton(onClick = { confirmDelete = true }) { Text("Apagar recursos", color = MaterialTheme.colorScheme.error) }
     }
-    Section("Como preparar (no PC, uma vez)") {
+    Section("Como preparar no PC (alternativa)") {
         Text(
             "Os recursos saem da SUA cópia do Minecraft: Java Edition ${BuildConfig.GAME_VERSION}, pelo horizon-prepare " +
                 "(precisa de Java 25 e do jogo instalado no launcher oficial, Prism ou MultiMC):",

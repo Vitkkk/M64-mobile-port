@@ -74,4 +74,46 @@ esac
 cd "$HZ"
 # API 28: AAudio (áudio do cpal) e Vulkan 1.1 existem a partir dela.
 cargo ndk "${TARGETS[@]}" -P 28 -o "$OUT" build -p horizon-android "${PROFILE_ARGS[@]}"
-find "$OUT" -name 'libhorizon_android.so' -exec ls -lh {} \;
+
+# 5. O preparador no celular: o horizon-prepare como programa, e os lançadores java/javac que
+#    iniciam o OpenJDK 25 para Android baixado pelo app. Um app só executa programas da pasta de
+#    bibliotecas do APK, então todos vão como lib*.so (o Gradle extrai: useLegacyPackaging).
+cargo ndk "${TARGETS[@]}" -P 28 build -p horizon-prepare "${PROFILE_ARGS[@]}"
+case "$PROFILE" in release) DIR=release ;; dev) DIR=debug ;; *) DIR="$PROFILE" ;; esac
+LLVM="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/linux-x86_64"
+for abi in "${ABI_LIST[@]}"; do
+    case "$abi" in
+        arm64-v8a) TRIPLE=aarch64-linux-android ;;
+        x86_64) TRIPLE=x86_64-linux-android ;;
+        *) echo "ABI sem suporte: $abi" >&2; exit 1 ;;
+    esac
+    mkdir -p "$OUT/$abi"
+    cp "$HZ/target/$TRIPLE/$DIR/horizon-prepare" "$OUT/$abi/libhorizon_prepare.so"
+    for variant in java javac; do
+        FLAGS=()
+        [[ "$variant" == javac ]] && FLAGS=(-DJAVAC)
+        "$LLVM/bin/${TRIPLE}28-clang" -O2 -fPIE -pie -Wall -Werror "${FLAGS[@]}" \
+            -Wl,-z,max-page-size=16384 -o "$OUT/$abi/libzenith_$variant.so" \
+            "$HERE/native/launcher/java_launcher.c" -ldl
+    done
+    cp "$LLVM/sysroot/usr/lib/$TRIPLE/libc++_shared.so" "$OUT/$abi/"
+done
+
+# 6. O kit do preparador (assets/prepare-kit.zip): o que o horizon-prepare lê da raiz do Horizon
+#    para conferir os arquivos e compilar os exportadores no celular. Só código do Horizon (MIT) e
+#    os hashes fixados; nada da Mojang.
+python3 - "$HZ" "$HERE/app/src/main/assets/prepare-kit.zip" <<'PY'
+import sys, zipfile
+from pathlib import Path
+root, out = Path(sys.argv[1]), Path(sys.argv[2])
+out.parent.mkdir(parents=True, exist_ok=True)
+files = [root / "research-lock.json", root / "crates/horizon-prepare/src/exporters.rs"]
+files += sorted((root / "mods/horizon/src/test/java").rglob("*.java"))
+with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as kit:
+    for f in files:
+        info = zipfile.ZipInfo(f.relative_to(root).as_posix(), (2026, 1, 1, 0, 0, 0))
+        info.compress_type = zipfile.ZIP_DEFLATED
+        kit.writestr(info, f.read_bytes())
+print(f"kit: {len(files)} arquivos -> {out}")
+PY
+find "$OUT" -name '*.so' -exec ls -lh {} \;

@@ -198,9 +198,9 @@ class MainActivity : ComponentActivity() {
                         "O Zenith é um launcher para Android do Horizon, uma reescrita open source em Rust do " +
                             "Minecraft: Java Edition 26.3.\n\n" +
                             "• Nem o app nem o Horizon trazem código, texturas, sons ou dados do Minecraft.\n" +
-                            "• Você precisa da sua própria cópia do Java Edition: os recursos do jogo são preparados " +
-                            "a partir dela (no PC, com o horizon-prepare) e importados aqui.\n" +
-                            "• Para jogar, entre com uma conta Microsoft que tenha o jogo, como nos outros launchers.\n\n" +
+                            "• Você precisa ter o Java Edition: entrando com a sua conta Microsoft, o Zenith baixa os " +
+                            "arquivos oficiais da Mojang e prepara o jogo aqui no celular (botão BAIXAR).\n" +
+                            "• Depois de instalado, dá para jogar com a conta Microsoft ou com um nome offline.\n\n" +
                             "Não é um produto oficial do Minecraft, nem aprovado ou associado à Mojang ou à Microsoft."
                     )
                     // A linha inteira marca a caixa, não só o quadradinho.

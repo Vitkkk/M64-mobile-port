@@ -137,7 +137,8 @@ object GameResources {
         publish(staging)
     }
 
-    private fun publish(staging: File) {
+    /** Troca os recursos atuais por [staging] (que precisa ter horizon-resources.json). */
+    fun publish(staging: File) {
         if (!File(staging, "horizon-resources.json").isFile) {
             staging.deleteRecursively()
             throw IOException("importação incompleta")

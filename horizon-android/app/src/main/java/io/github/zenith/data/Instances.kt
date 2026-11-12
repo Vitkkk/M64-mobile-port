@@ -26,6 +26,8 @@ data class Instance(
     val extraArgs: String = "",
     /** Layout de controles desta instância; vazio usa o ativo. */
     val layout: String = "",
+    /** Versão do Minecraft (a que o motor deste APK roda; ver install/GameVersions). */
+    val version: String = io.github.zenith.BuildConfig.GAME_VERSION,
 ) {
     val root get() = File(Paths.instancesDir, id)
     val gameDir get() = File(root, "game")
@@ -51,7 +53,7 @@ data class Instance(
         .put("id", id).put("name", name).put("color", color).put("icon", icon)
         .put("created", created).put("lastPlayed", lastPlayed).put("playSeconds", playSeconds)
         .put("quickWorld", quickWorld).put("quickServer", quickServer)
-        .put("extraArgs", extraArgs).put("layout", layout)
+        .put("extraArgs", extraArgs).put("layout", layout).put("version", version)
 
     companion object {
         fun fromJson(o: JSONObject) = Instance(
@@ -66,6 +68,7 @@ data class Instance(
             quickServer = o.optString("quickServer", ""),
             extraArgs = o.optString("extraArgs", ""),
             layout = o.optString("layout", ""),
+            version = o.optString("version", io.github.zenith.BuildConfig.GAME_VERSION),
         )
 
         val ICONS = listOf("grass", "stone", "diamond", "redstone", "tnt", "chest", "sword", "pickaxe")

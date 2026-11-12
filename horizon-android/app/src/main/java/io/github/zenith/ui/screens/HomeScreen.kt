@@ -20,6 +20,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Public
@@ -31,6 +32,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -52,7 +54,10 @@ import io.github.zenith.data.Skins
 import io.github.zenith.game.GameLauncher
 import io.github.zenith.ui.LauncherViewModel
 import io.github.zenith.ui.Tab
+import io.github.zenith.install.Installer
 import io.github.zenith.ui.components.BlockIcon
+import io.github.zenith.ui.components.InstallPanel
+import io.github.zenith.ui.components.rememberInstallStarter
 import io.github.zenith.ui.components.Chip
 import io.github.zenith.ui.components.Section
 import io.github.zenith.ui.components.SkinHead
@@ -69,6 +74,10 @@ fun HomeScreen(vm: LauncherViewModel, onNavigate: (Tab, String?) -> Unit) {
     LaunchedEffect(account) { skin = account?.let { withContext(Dispatchers.IO) { Skins.bitmapFor(it) } } }
     val problem = remember(vm.resources, account, vm.accounts) { GameLauncher.check(vm.settings, account) }
     val worlds = remember(instance, vm.busy) { instance?.worlds().orEmpty() }
+
+    val install by Installer.state.collectAsState()
+    val installed = vm.resources.ready
+    val startInstall = rememberInstallStarter()
 
     fun play(world: String? = null, server: String? = null) {
         val i = instance ?: return
@@ -91,16 +100,31 @@ fun HomeScreen(vm: LauncherViewModel, onNavigate: (Tab, String?) -> Unit) {
                 SkinPreview(skin, account?.skinModel == "slim", height = 170.dp)
             }
             Column(Modifier.align(Alignment.BottomStart).padding(20.dp)) {
+                // Sem o jogo instalado o botão principal é BAIXAR (instala aqui mesmo); depois, JOGAR.
                 Button(
-                    onClick = { play() },
-                    enabled = vm.busy == null && instance != null,
+                    onClick = {
+                        when {
+                            installed -> play()
+                            install.running -> {}
+                            Installer.blocker(context) == null -> startInstall()
+                            else -> onNavigate(Tab.ACCOUNT, null)
+                        }
+                    },
+                    enabled = vm.busy == null && instance != null && !install.running,
                     contentPadding = ButtonDefaults.ContentPadding,
                     modifier = Modifier.height(56.dp).width(200.dp),
                     shape = RoundedCornerShape(14.dp),
                 ) {
-                    Icon(Icons.Filled.PlayArrow, null)
+                    Icon(if (installed) Icons.Filled.PlayArrow else Icons.Filled.Download, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("JOGAR", fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        when {
+                            installed -> "JOGAR"
+                            install.running -> "${(install.overall * 100).toInt()}%"
+                            else -> "BAIXAR"
+                        },
+                        fontWeight = FontWeight.Black, style = MaterialTheme.typography.titleMedium,
+                    )
                 }
                 Spacer(Modifier.height(6.dp))
                 Text(
@@ -110,12 +134,15 @@ fun HomeScreen(vm: LauncherViewModel, onNavigate: (Tab, String?) -> Unit) {
             }
         }
 
-        if (problem != null) {
+        if (!installed || install.running || install.step == Installer.Step.DONE || install.step == Installer.Step.FAILED) {
+            InstallPanel(vm, title = if (installed) "Instalação" else "Instalar o Minecraft ${BuildConfig.GAME_VERSION}", onGoToAccount = { onNavigate(Tab.ACCOUNT, null) })
+        }
+
+        if (problem != null && problem !is GameLauncher.Problem.NoResources) {
             Section("Antes de jogar") {
                 Text(problem.message, color = MaterialTheme.colorScheme.error)
                 Spacer(Modifier.height(8.dp))
                 when (problem) {
-                    is GameLauncher.Problem.NoResources -> OutlinedButton(onClick = { onNavigate(Tab.SETTINGS, "resources") }) { Text("Importar recursos") }
                     is GameLauncher.Problem.NoOwner, is GameLauncher.Problem.NoAccount -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedButton(onClick = { onNavigate(Tab.ACCOUNT, null) }) { Text("Ir para Conta") }
                         if (DevFlags.TEST_ACCOUNT) OutlinedButton(onClick = {

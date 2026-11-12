@@ -290,3 +290,46 @@ index e09bd3e..9e71510 100644
  pub mod entry;
  pub mod game;
  pub mod mod_api;
+diff --git a/crates/horizon-prepare/src/java.rs b/crates/horizon-prepare/src/java.rs
+index 1279cc6..3a348ba 100644
+--- a/crates/horizon-prepare/src/java.rs
++++ b/crates/horizon-prepare/src/java.rs
+@@ -237,6 +237,9 @@ pub fn find_runtime(major: i64, more: &[PathBuf]) -> Result<Jdk, String> {
+ }
+ 
+ fn find_tools(major: i64, more: &[PathBuf], compiler: bool) -> Result<Jdk, String> {
++    if let Some(jdk) = supplied_tools(compiler)? {
++        return Ok(jdk);
++    }
+     let tool = if compiler { "javac" } else { "java" };
+     let need = format!(
+         "Java {major} is needed ({tool}, e.g. Eclipse Temurin {major}). \
+@@ -329,6 +332,28 @@ fn find_tools(major: i64, more: &[PathBuf], compiler: bool) -> Result<Jdk, Strin
+     }
+ }
+ 
++/// The tools a launcher supplies by path (`HORIZON_PREPARE_JAVA`, `HORIZON_PREPARE_JAVAC`), used
++/// as they are: on Android an app may run programs only from its own library folder, so the
++/// launcher ships small `java` and `javac` programs there that start a runtime it downloaded
++/// (whose own `bin/java` the system would not let it run). Not probed: the launcher pins that
++/// runtime's version.
++fn supplied_tools(compiler: bool) -> Result<Option<Jdk>, String> {
++    let given = |name: &str| std::env::var_os(name).filter(|v| !v.is_empty()).map(PathBuf::from);
++    let Some(java) = given("HORIZON_PREPARE_JAVA") else {
++        return Ok(None);
++    };
++    let javac = given("HORIZON_PREPARE_JAVAC");
++    if !java.is_file() {
++        return Err(format!("HORIZON_PREPARE_JAVA names no program: {}", java.display()));
++    }
++    match javac {
++        Some(javac) if javac.is_file() => Ok(Some(Jdk { javac, java })),
++        Some(javac) => Err(format!("HORIZON_PREPARE_JAVAC names no program: {}", javac.display())),
++        None if compiler => Err("HORIZON_PREPARE_JAVA is set without HORIZON_PREPARE_JAVAC, and the exporters must be compiled".into()),
++        None => Ok(Some(Jdk { javac: java.clone(), java })),
++    }
++}
++
+ /// A classpath with the platform's separator.
+ pub fn classpath<'a>(paths: impl IntoIterator<Item = &'a Path>) -> String {
+     let separator = if cfg!(windows) { ";" } else { ":" };

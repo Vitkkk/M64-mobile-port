@@ -70,7 +70,16 @@ jobs:
       - name: Conferir que o APK não leva arquivos do Minecraft
         run: |
           APK=horizon-android/app/build/outputs/apk/release/app-release.apk
-          unzip -l "$APK" | grep -q 'lib/arm64-v8a/libhorizon_android.so'
+          for f in lib/arm64-v8a/libhorizon_android.so lib/arm64-v8a/libhorizon_prepare.so \
+                   lib/arm64-v8a/libzenith_java.so lib/arm64-v8a/libzenith_javac.so \
+                   lib/arm64-v8a/libc++_shared.so assets/prepare-kit.zip; do
+            unzip -l "$APK" | grep -q " $f$" || { echo "falta $f no APK"; exit 1; }
+          done
+          # O kit do preparador só leva código do Horizon e os hashes fixados.
+          unzip -p "$APK" assets/prepare-kit.zip > kit.zip
+          if unzip -Z1 kit.zip | grep -Ev '^(research-lock\.json|crates/horizon-prepare/src/exporters\.rs|mods/horizon/src/test/java/.*\.java)$'; then
+            echo "o kit tem arquivos inesperados"; exit 1
+          fi
           if unzip -l "$APK" | grep -Ei '\.(jar|mca|ogg)$|horizon-resources\.json'; then
             echo "o APK contém arquivos do jogo"; exit 1
           fi

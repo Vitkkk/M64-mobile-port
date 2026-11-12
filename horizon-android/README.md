@@ -74,9 +74,10 @@ O modelo é o do próprio Horizon:
 - **Nem o APK nem este repositório têm código, texturas, sons ou dados do
   Minecraft.** O Horizon é uma reimplementação (MIT); o CI confere que o APK não
   leva `.jar`, `.ogg`, regiões nem recursos preparados.
-- **Os recursos vêm da sua cópia.** Você roda o `horizon-prepare` no PC com o
-  client e o server 26.3 que você tem, e importa o zip no celular. O app não baixa
-  nada disso.
+- **Os arquivos do jogo vêm da Mojang, para quem tem o jogo.** O BAIXAR busca os
+  arquivos oficiais nos servidores da Mojang só para uma conta Microsoft dona do Java
+  Edition (como o launcher do Horizon faz), e eles ficam só no seu celular. Ou você
+  prepara no PC a partir da sua cópia e importa o zip.
 - **O jogo só abre com uma conta dona do Java Edition**, como o launcher do
   Horizon pede a launchers de terceiros (docs/api/launch.md e
   docs/microsoft-account.md no Horizon). Nomes offline jogam atrás de uma conta
@@ -115,24 +116,47 @@ botão Jogar avisa que falta o motor. O CI publica o APK completo como artefato
 
 ## Usando
 
-1. **Prepare os recursos no PC** (uma vez por versão), a partir da sua cópia:
-   ```sh
-   horizon-android/tools/prepare-resources.sh --server-jar ~/Downloads/server.jar
-   # -> horizon-resources.zip (centenas de MB; é seu, não compartilhe)
-   ```
-   No **Windows**, o mais fácil: baixe o `server.jar` 26.3 para a pasta Downloads e dê dois
-   cliques em `horizon-android\tools\PREPARAR-RECURSOS.bat`. Ele instala pelo winget o que
-   faltar (Rust, Visual Studio Build Tools com C++, Java 25 e Git), acha o `server.jar` e
-   deixa o `horizon-resources.zip` na Área de Trabalho.
-   Se já tiver tudo instalado: dois cliques em `horizon-android\tools\prepare-resources.bat`
-   (ele pede o `server.jar`), ou no CMD:
-   ```bat
-   horizon-android\tools\prepare-resources.bat C:\Users\voce\Downloads\server.jar
-   ```
-2. No celular: **Ajustes → Recursos do jogo → Importar .zip**.
-3. **Conta → Entrar com Microsoft** (ou, para desenvolvimento, desligue a verificação
-   em Ajustes → Conta Microsoft e use um nome offline).
-4. **Início → JOGAR.**
+Como no Mojo/Pojav: **Criar instância → escolher a versão → BAIXAR → JOGAR**, tudo no celular.
+
+1. **Conta → Entrar com Microsoft** com a conta que tem o Minecraft: Java Edition.
+2. **Instâncias → Nova instância**, versão **26.3 (Horizon)**, **Criar e BAIXAR** (ou o
+   **BAIXAR** do Início).
+3. Espere a **Instalação concluída** (alguns minutos; dá para sair do app, segue na notificação).
+4. **JOGAR**, com a conta Microsoft ou com um nome offline.
+
+### O que o BAIXAR faz
+
+| Etapa | O quê | Conferido por |
+|---|---|---|
+| Conta | pergunta à Mojang se a conta Microsoft tem o Java Edition (entitlements) | o próprio serviço da Mojang |
+| Metadados | JSON da versão buscado **pelo hash fixado** no `research-lock.json` do Horizon (`piston-meta.mojang.com/v1/packages/<sha1>/26.3.json`) e o índice de assets | SHA-1 |
+| Arquivos | client e server jar, 114 bibliotecas e os assets que o `horizon-prepare` usa (sons, panorama, fontes, idiomas, packs embutidos): ~5.200 arquivos, ~660 MB, de `piston-data.mojang.com` e `resources.download.minecraft.net`, 8 em paralelo, retomável | SHA-1 de cada arquivo (client e server também contra os hashes do Horizon) |
+| Java | OpenJDK 25 para Android (build público do AngelAuraMC, GPLv2+CE), ~38 MB | SHA-256 fixado |
+| Preparo | `horizon-prepare --prepare --complete` do Horizon no celular: compila os exportadores do Horizon com o `javac` desse Java e roda o gerador de dados do vanilla com o seu jar | `horizon-prepare --check` |
+| Fim | troca segura da pasta de recursos; o Java e os arquivos de trabalho são apagados (os downloads também, a menos que você marque "Guardar") | |
+
+Por que precisa de Java: o Horizon prepara as tabelas do jogo rodando o código da própria
+Mojang (os exportadores), e isso só roda numa JVM (issue horizon-rust/horizon#1750). O
+`horizon-prepare` vai no APK como `libhorizon_prepare.so`; como o Android só deixa um app executar
+programas da pasta de bibliotecas do APK, o Java baixado é iniciado por dois lançadores pequenos
+em C que também vão lá (`native/launcher/java_launcher.c`, técnica do Starling). Um patch de 25
+linhas no `horizon-prepare` (`HORIZON_PREPARE_JAVA`/`JAVAC`) faz o preparador usar esses lançadores.
+
+**Regras de conta:** os arquivos do jogo só são baixados para uma conta Microsoft que tem o Java
+Edition, como o Horizon pede a launchers. Nomes offline são criados e jogam localmente sem
+login, depois que o jogo foi instalado. Não há como pular essa verificação para baixar (a chave
+de teste em `DevFlags` só vale para abrir o jogo já instalado). O login Microsoft precisa de um
+Client ID do Azure aprovado pela Mojang (Ajustes → Conta Microsoft).
+
+### Alternativa avançada: preparar no PC e importar o ZIP
+
+Para quem já tem os recursos preparados (ou não quer baixar no celular):
+```sh
+horizon-android/tools/prepare-resources.sh --server-jar ~/Downloads/server.jar
+# -> horizon-resources.zip (centenas de MB; é seu, não compartilhe)
+```
+No **Windows**: dois cliques em `horizon-android\tools\PREPARAR-RECURSOS.bat`. Depois, no
+celular: **Ajustes → Instalar o jogo → Importar .zip**.
 
 Dicas de desempenho: o preset **Equilibrado** (8 chunks, 60 FPS, resolução 85%) é
 o padrão das instâncias novas. Em aparelhos com Vulkan problemático use
@@ -173,7 +197,8 @@ horizon-android/
 - [x] CI que compila o motor para arm64 e empacota o APK
 - [ ] **Testar num celular de verdade** (Adreno, Mali, Xclipse) e corrigir o que aparecer
 - [ ] Voltar ao jogo depois de sair do app (recriar a superfície do wgpu em `resumed`); hoje o mundo é salvo ao sair
-- [ ] Preparar os recursos no próprio celular (precisa de um Java 25 para Android para os exportadores do Horizon)
+- [x] Instalar o jogo no próprio celular: download oficial da Mojang + preparo com Java 25 temporário
+- [ ] Testar o instalador num celular de verdade (compila e passa nos testes; o preparo com o Java no Android ainda não rodou num aparelho)
 - [ ] Área de transferência do Android no jogo (hoje copiar e colar funcionam só dentro do jogo)
 - [ ] Mods nativos (`.hnmod`): compilar motores com eles no CI e importar no app
 - [ ] Teclado na tela integrado ao GameTextInput do GameActivity
@@ -183,6 +208,10 @@ horizon-android/
 
 - [Horizon](https://github.com/horizon-rust/horizon), de Ludovic Marie e colaboradores (MIT)
 - [winit](https://github.com/rust-windowing/winit), [wgpu](https://github.com/gfx-rs/wgpu), [android-activity](https://github.com/rust-mobile/android-activity), [GameActivity](https://developer.android.com/games/agdk/game-activity)
+- [Starling](https://github.com/starling-client/starling) (MIT), o port Android do Horizon: a técnica de
+  preparar no celular com um Java baixado e lançadores na pasta de bibliotecas veio dele
+- OpenJDK 25 para Android do [AngelAuraMC](https://github.com/AngelAuraMC/angelauramc-openjdk-build)
+  (GPLv2 com Classpath Exception): baixado na instalação, conferido por SHA-256, não vai no APK
 - Inspirado por PojavLauncher, MojoLauncher e afins
 
 Licença do Zenith: GPL-3.0, como o resto do repositório. O Horizon mantém a dele (MIT).

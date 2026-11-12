@@ -6,6 +6,10 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <!-- Feedback tátil dos botões na tela. -->
     <uses-permission android:name="android.permission.VIBRATE" />
+    <!-- A instalação do jogo (download e preparo, alguns minutos) roda num serviço em primeiro plano. -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <uses-feature android:glEsVersion="0x00030000" android:required="true" />
     <uses-feature android:name="android.hardware.touchscreen.multitouch" android:required="false" />
@@ -61,6 +65,11 @@
                 android:name="android.app.lib_name"
                 android:value="horizon_android" />
         </activity>
+
+        <service
+            android:name=".install.InstallService"
+            android:exported="false"
+            android:foregroundServiceType="dataSync" />
 
         <provider
             android:name="androidx.core.content.FileProvider"

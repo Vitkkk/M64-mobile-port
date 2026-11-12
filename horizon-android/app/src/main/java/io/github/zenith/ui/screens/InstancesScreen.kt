@@ -1,6 +1,13 @@
 package io.github.zenith.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material3.Button
+import androidx.compose.runtime.collectAsState
+import androidx.compose.ui.platform.LocalContext
+import io.github.zenith.install.GameVersions
+import io.github.zenith.install.Installer
+import io.github.zenith.ui.components.rememberInstallStarter
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -60,6 +67,10 @@ fun InstancesScreen(vm: LauncherViewModel) {
     var editing by remember { mutableStateOf<Instance?>(null) }
     var creating by remember { mutableStateOf(false) }
     var deleting by remember { mutableStateOf<Instance?>(null) }
+    var installHint by remember { mutableStateOf(false) }
+    val install by Installer.state.collectAsState()
+    val startInstall = rememberInstallStarter()
+    val context = LocalContext.current
 
     Box(Modifier.fillMaxSize()) {
         LazyColumn(Modifier.fillMaxSize().padding(horizontal = 16.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 16.dp)) {
@@ -95,6 +106,19 @@ fun InstancesScreen(vm: LauncherViewModel) {
                                 style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             if (inst.quickServer.isNotBlank()) Text("Entra em ${inst.quickServer}", style = MaterialTheme.typography.bodySmall)
+                            Spacer(Modifier.height(4.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Chip("Minecraft ${inst.version}")
+                                Spacer(Modifier.width(6.dp))
+                                when {
+                                    vm.resources.ready && vm.resources.version.let { it == null || it == inst.version } -> Chip("Instalada")
+                                    install.running -> Chip("Baixando ${(install.overall * 100).toInt()}%", MaterialTheme.colorScheme.tertiary)
+                                    else -> TextButton(onClick = {
+                                        vm.selectInstance(inst)
+                                        if (Installer.blocker(context) == null) startInstall() else installHint = true
+                                    }) { Icon(Icons.Filled.Download, null); Spacer(Modifier.width(4.dp)); Text("BAIXAR", fontWeight = FontWeight.Black) }
+                                }
+                            }
                         }
                         Box {
                             IconButton(onClick = { menu = true }) { Icon(Icons.Filled.MoreVert, "Opções") }
@@ -120,13 +144,30 @@ fun InstancesScreen(vm: LauncherViewModel) {
         )
     }
 
-    if (creating) InstanceDialog(null, onDismiss = { creating = false }) { name, color, icon, _ ->
+    if (creating) InstanceDialog(null, onDismiss = { creating = false }, onSaveAndInstall = { name, color, icon, extra ->
         creating = false
         vm.work("Criando $name…") {
             val created = InstanceStore.create(name, color, icon, copyOptionsFrom = vm.instance)
+            InstanceStore.save(extra(created))
+            vm.settings.selectedInstance = created.id
+        }
+        if (!vm.resources.ready && !Installer.state.value.running) {
+            if (Installer.blocker(context) == null) startInstall() else installHint = true
+        }
+    }) { name, color, icon, extra ->
+        creating = false
+        vm.work("Criando $name…") {
+            val created = InstanceStore.create(name, color, icon, copyOptionsFrom = vm.instance)
+            InstanceStore.save(extra(created))
             vm.settings.selectedInstance = created.id
         }
     }
+    if (installHint) AlertDialog(
+        onDismissRequest = { installHint = false },
+        title = { Text("Não deu para baixar ainda") },
+        text = { Text(Installer.blocker(context) ?: "") },
+        confirmButton = { TextButton(onClick = { installHint = false }) { Text("OK") } },
+    )
     editing?.let { inst ->
         InstanceDialog(inst, onDismiss = { editing = null }) { name, color, icon, extra ->
             editing = null
@@ -148,8 +189,13 @@ fun InstancesScreen(vm: LauncherViewModel) {
 private fun InstanceDialog(
     initial: Instance?,
     onDismiss: () -> Unit,
+    onSaveAndInstall: ((String, Long, String, (Instance) -> Instance) -> Unit)? = null,
     onSave: (String, Long, String, (Instance) -> Instance) -> Unit,
 ) {
+    val context = LocalContext.current
+    // Só as versões que o motor deste APK roda (o Horizon fixado reimplementa uma).
+    val versions = remember { GameVersions.available(context).map { it.version }.ifEmpty { listOf(io.github.zenith.BuildConfig.GAME_VERSION) } }
+    var version by remember { mutableStateOf(initial?.version ?: versions.first()) }
     var name by remember { mutableStateOf(initial?.name ?: "Nova instância") }
     var color by remember { mutableStateOf(initial?.color ?: Instance.COLORS.first()) }
     var icon by remember { mutableStateOf(initial?.icon ?: "grass") }
@@ -163,6 +209,14 @@ private fun InstanceDialog(
         text = {
             LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item { OutlinedTextField(name, { name = it.take(32) }, label = { Text("Nome") }, singleLine = true) }
+                item {
+                    ChoiceRow(
+                        "Versão do Minecraft",
+                        versions.map { it to "$it (Horizon)" },
+                        version,
+                        subtitle = "Só aparecem as versões que o motor Rust deste app roda",
+                    ) { version = it }
+                }
                 item {
                     Text("Ícone", style = MaterialTheme.typography.labelLarge)
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -200,9 +254,17 @@ private fun InstanceDialog(
             }
         },
         confirmButton = {
-            TextButton(enabled = name.isNotBlank(), onClick = {
-                onSave(name.trim(), color, icon) { it.copy(quickServer = server, quickWorld = world, extraArgs = args, layout = layout) }
-            }) { Text("Salvar") }
+            val extra: (Instance) -> Instance = { it.copy(quickServer = server, quickWorld = world, extraArgs = args, layout = layout, version = version) }
+            Row {
+                TextButton(enabled = name.isNotBlank(), onClick = { onSave(name.trim(), color, icon, extra) }) {
+                    Text(if (initial == null) "Criar" else "Salvar")
+                }
+                if (onSaveAndInstall != null) {
+                    Button(enabled = name.isNotBlank(), onClick = { onSaveAndInstall(name.trim(), color, icon, extra) }) {
+                        Text("Criar e BAIXAR", fontWeight = FontWeight.Black)
+                    }
+                }
+            }
         },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancelar") } },
     )

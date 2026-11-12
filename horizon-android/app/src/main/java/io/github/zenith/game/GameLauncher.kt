@@ -29,7 +29,7 @@ object GameLauncher {
             "Este APK foi compilado sem o motor do Horizon (libhorizon_android.so). " +
                 "Compile com horizon-android/tools/build-native.sh ou baixe o APK do CI."
         )
-        class NoResources(detail: String) : Problem("Recursos do jogo: $detail. Importe-os em Ajustes → Recursos do jogo.")
+        class NoResources(detail: String) : Problem("O jogo ainda não está instalado ($detail). Toque em BAIXAR para instalar aqui no celular.")
         class NoOwner : Problem("Entre com uma conta Microsoft que tenha o Minecraft: Java Edition para jogar.")
         class NoAccount : Problem("Escolha uma conta (Microsoft ou nome offline) na aba Conta.")
         class Auth(detail: String) : Problem(detail)

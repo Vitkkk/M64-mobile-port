@@ -73,6 +73,8 @@ android {
         unitTests.all {
             // ./gradlew testDebugUnitTest -Pzenith.screenshots grava PNGs das telas em app/build/screens/
             if (project.hasProperty("zenith.screenshots")) it.systemProperty("zenith.screenshots", "1")
+            // -Pzenith.network=CAMINHO/research-lock.json: confere o plano contra os manifestos reais da Mojang.
+            (project.findProperty("zenith.network") as String?)?.let { lock -> it.systemProperty("zenith.network", lock) }
             // O Robolectric baixa o android-all do Maven Central; -Pzenith.mavenMirror=URL usa um espelho.
             (project.findProperty("zenith.mavenMirror") as String?)?.let { url ->
                 it.systemProperty("robolectric.dependency.repo.url", url)
@@ -87,6 +89,8 @@ dependencies {
     implementation("androidx.appcompat:appcompat:1.7.0")
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.documentfile:documentfile:1.0.1")
+    // Descompactar o OpenJDK 25 para Android (.tar.xz) que prepara os recursos no celular.
+    implementation("org.tukaani:xz:1.10")
 
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
