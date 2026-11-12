@@ -1,0 +1,90 @@
+name: Zenith (Horizon para Android)
+
+on:
+  push:
+    paths:
+      - "horizon-android/**"
+      - ".github/workflows/horizon-android.yml"
+      - ".gitmodules"
+  pull_request:
+    paths:
+      - "horizon-android/**"
+      - ".github/workflows/horizon-android.yml"
+  workflow_dispatch:
+    inputs:
+      profile:
+        description: "Perfil do Rust (release é o mais rápido no celular; fast compila mais depressa)"
+        default: release
+        type: choice
+        options: [release, fast]
+
+jobs:
+  launcher:
+    name: Launcher (Kotlin) e testes
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Testes unitários do launcher
+        working-directory: horizon-android
+        run: ./gradlew testDebugUnitTest --no-daemon
+      - name: APK sem o motor (só a interface)
+        working-directory: horizon-android
+        run: ./gradlew assembleDebug --no-daemon -Pzenith.abis=arm64-v8a
+
+  engine:
+    name: Motor Horizon (Rust → arm64 Android) e APK completo
+    runs-on: ubuntu-24.04
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: Submódulo do Horizon (raso)
+        run: git submodule update --init --depth 1 horizon-android/third_party/horizon
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Rust e alvo Android
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup target add aarch64-linux-android
+          cargo install cargo-ndk --locked
+      - name: NDK
+        run: yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.2.12479018" > /dev/null
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: horizon-android/third_party/horizon -> target
+          key: android-${{ inputs.profile || 'release' }}
+      - name: Compilar libhorizon_android.so
+        run: |
+          export ANDROID_NDK_HOME="$ANDROID_HOME/ndk/27.2.12479018"
+          horizon-android/tools/build-native.sh --abi arm64-v8a --profile ${{ inputs.profile || 'release' }}
+      - name: Compilar o APK
+        working-directory: horizon-android
+        env:
+          ZENITH_MSA_CLIENT_ID: ${{ vars.ZENITH_MSA_CLIENT_ID }}
+        run: ./gradlew assembleRelease --no-daemon -Pzenith.abis=arm64-v8a
+      - name: Conferir que o APK não leva arquivos do Minecraft
+        run: |
+          APK=horizon-android/app/build/outputs/apk/release/app-release.apk
+          for f in lib/arm64-v8a/libhorizon_android.so lib/arm64-v8a/libhorizon_prepare.so \
+                   lib/arm64-v8a/libzenith_java.so lib/arm64-v8a/libzenith_javac.so \
+                   lib/arm64-v8a/libc++_shared.so assets/prepare-kit.zip; do
+            unzip -l "$APK" | grep -q " $f$" || { echo "falta $f no APK"; exit 1; }
+          done
+          # O kit do preparador só leva código do Horizon e os hashes fixados.
+          unzip -p "$APK" assets/prepare-kit.zip > kit.zip
+          if unzip -Z1 kit.zip | grep -Ev '^(research-lock\.json|crates/horizon-prepare/src/exporters\.rs|mods/horizon/src/test/java/.*\.java)$'; then
+            echo "o kit tem arquivos inesperados"; exit 1
+          fi
+          if unzip -l "$APK" | grep -Ei '\.(jar|mca|ogg)$|horizon-resources\.json'; then
+            echo "o APK contém arquivos do jogo"; exit 1
+          fi
+      # O APK não tem nada da Mojang: o jogador importa os recursos da própria cópia.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: zenith-launcher-arm64
+          path: horizon-android/app/build/outputs/apk/release/app-release.apk

@@ -1,8 +1,16 @@
-name: CI
+name: CI (port de SM64)
 
+# O Zenith (horizon-android/) tem o próprio workflow: mudanças só nele não
+# rodam este, para o artefato do SM64 não ser confundido com o do launcher.
 on:
   push:
+    paths-ignore:
+      - "horizon-android/**"
+      - ".github/workflows/horizon-android.yml"
   pull_request:
+    paths-ignore:
+      - "horizon-android/**"
+      - ".github/workflows/horizon-android.yml"
 
 jobs:
   native:

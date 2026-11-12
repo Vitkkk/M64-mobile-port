@@ -1,0 +1,10 @@
+.gradle/
+build/
+local.properties
+*.iml
+.idea/
+# A biblioteca nativa é gerada por tools/build-native.sh
+app/src/main/jniLibs/
+.kotlin/
+# Gerado por tools/build-native.sh (código do Horizon e hashes fixados)
+app/src/main/assets/prepare-kit.zip

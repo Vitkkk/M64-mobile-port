@@ -5,3 +5,8 @@
 	path = native/third_party/rt64
 	url = https://github.com/rt64/rt64
 	ignore = dirty
+[submodule "horizon-android/third_party/horizon"]
+	path = horizon-android/third_party/horizon
+	url = https://github.com/horizon-rust/horizon
+	shallow = true
+	ignore = dirty

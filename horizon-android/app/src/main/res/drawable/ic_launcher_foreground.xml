@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Um sol no horizonte, em blocos. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp"
+    android:viewportWidth="108" android:viewportHeight="108">
+    <path android:fillColor="#FFF4C542" android:pathData="M38,30h32v8h8v24h-48v-24h8z" />
+    <path android:fillColor="#FFFFE08A" android:pathData="M46,38h16v8h-16z" />
+    <path android:fillColor="#FF4FB477" android:pathData="M22,62h64v8h-64z" />
+    <path android:fillColor="#FF7A5230" android:pathData="M22,70h64v16h-64z" />
+    <path android:fillColor="#FF5E3E24" android:pathData="M30,74h8v4h-8zM54,78h8v4h-8zM70,74h8v4h-8z" />
+</vector>
