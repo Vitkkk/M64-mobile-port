@@ -76,6 +76,34 @@ object LocalImport {
         return JarInfo(fileName, kind, id, name, sha1, file.length(), compatible, message)
     }
 
+    data class JsonInfo(val fileName: String, val versionId: String?, val sha1: String, val usable: Boolean, val message: String)
+
+    /**
+     * Lê um JSON de versão (`26.3.json` de um launcher): o id, o client que ele nomeia e se o
+     * arquivo é um dos que o Horizon aceita (SHA-1 em research-lock.json). A Mojang republica o
+     * JSON de vez em quando (muda só o índice de traduções); um launcher pode ter o mais novo,
+     * que este Horizon ainda não aceita: aí o certo é buscar o fixado pelo hash.
+     */
+    fun inspectJson(file: File, fileName: String, pinned: PinnedVersion): JsonInfo {
+        val sha1 = Downloader.hashOf(file)
+        val json = runCatching { JSONObject(file.readText()) }.getOrNull()
+            ?: return JsonInfo(fileName, null, sha1, false, "Não é um JSON válido")
+        val id = json.optString("id").ifBlank { null }
+        val client = json.optJSONObject("downloads")?.optJSONObject("client")?.optString("sha1")
+        val accepted = pinned.manifests.any { it.equals(sha1, true) }
+        val message = when {
+            accepted -> "JSON da versão ${pinned.version} original: aceito pelo Horizon"
+            json.has("inheritsFrom") || (json.has("mainClass") && client == null) ->
+                "É um JSON de perfil do launcher (Fabric, Forge…), não o JSON original da versão"
+            id != null && id != pinned.version -> "É o JSON do Minecraft $id. O motor deste app só roda o ${pinned.version}"
+            client != null && client.equals(pinned.clientSha1, true) ->
+                "É o JSON do ${pinned.version}, mas numa republicação da Mojang que este Horizon não aceita " +
+                    "(ou alterado pelo launcher). Toque em \"Buscar o JSON na Mojang\" (alguns KB, pelo hash fixado)"
+            else -> "Não é o JSON da versão ${pinned.version} (SHA-1 $sha1)"
+        }
+        return JsonInfo(fileName, id, sha1, accepted, message)
+    }
+
     /** Põe um JAR conferido no lugar que o horizon-prepare lê. */
     fun place(file: File, info: JarInfo, files: MojangFiles) {
         if (!info.compatible) throw IOException(info.message)
@@ -215,7 +243,14 @@ object LocalImport {
             val ref = manifest.getJSONObject("assetIndex")
             val indexSource = root.path("assets", "indexes", "${ref.getString("id")}.json")
             val indexFile = File(files.minecraftDir, "assets/indexes/${ref.getString("id")}.json")
-            if (take(indexSource, indexFile, ref.getString("sha1"), "índice de assets")) index = JSONObject(indexFile.readText())
+            if (take(indexSource, indexFile, ref.getString("sha1"), "índice de assets")) {
+                index = JSONObject(indexFile.readText())
+            } else if (indexSource != null) {
+                // O launcher tem o índice de uma republicação (só as traduções mudam): o fixado vem
+                // da Mojang pelo hash (metadados, ~600 KB) e os objetos são copiados da pasta local.
+                index = runCatching { files.assetIndex(manifest) }.getOrNull()
+                if (index != null) skipped.removeAll { it.startsWith("índice de assets") }
+            }
         }
         val assets = index?.let { files.assets(it) } ?: emptyList()
         val total = 2 + libs.size + assets.size
@@ -254,7 +289,10 @@ object LocalImport {
         val client = files.clientJar.isFile && Downloader.hashOf(files.clientJar).equals(pinned.clientSha1, true)
         val server = files.serverJar.isFile && Downloader.hashOf(files.serverJar).equals(pinned.serverSha1, true)
         val out = mutableListOf(
-            Requirement("JSON da versão $v", manifestOk, if (manifestOk) "conferido" else "vem da Mojang pelo hash (alguns KB)", true),
+            Requirement(
+                "JSON da versão $v", manifestOk,
+                if (manifestOk) "conferido" else "importe o $v.json (.minecraft/versions/$v/) ou busque na Mojang (alguns KB)", true,
+            ),
             Requirement("Client $v ($v.jar)", client, if (client) "original, conferido" else "importe o JAR ou a instalação", true),
             Requirement("Servidor $v (server.jar)", server, if (server) "original, conferido" else "o horizon-prepare roda o gerador de dados dele; launchers de celular não o guardam", true),
         )

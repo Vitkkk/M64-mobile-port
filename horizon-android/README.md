@@ -165,7 +165,7 @@ No Início (ou Ajustes → Instalar o jogo), **Importar do celular**:
 
   | Item | Obrigatório | De onde |
   |---|---|---|
-  | JSON da versão | sim | da instalação; se o launcher o alterou, da Mojang pelo hash (alguns KB) |
+  | JSON da versão | sim | **Importar .json** (o `26.3.json` da `.minecraft/versions/26.3/`) ou **Buscar o JSON na Mojang** (alguns KB, pelo hash fixado; buscado sozinho depois de importar o JAR). A Mojang republicou o JSON do 26.3 em 10/11/2026 (`9f67e10…`, só o índice de traduções muda) e este Horizon só aceita os anteriores: um launcher com o mais novo precisa da busca |
   | Client 26.3 | sim | JAR local ou instalação |
   | **Servidor 26.3** | sim | o `horizon-prepare` roda o gerador de dados dele, e launchers de celular não o guardam: selecione o `server.jar` (minecraft.net) ou use o BAIXAR |
   | Bibliotecas do client | sim | da instalação (launchers Android às vezes trocam as do LWJGL: o BAIXAR completa) |

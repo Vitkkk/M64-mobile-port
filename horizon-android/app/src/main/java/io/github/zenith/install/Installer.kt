@@ -322,10 +322,23 @@ object Installer {
     fun importJar(context: Context, name: String, size: Long, open: () -> java.io.InputStream) = job(Step.VERIFY, name) {
         val pinned = pinnedOrFail(context)
         val files = MojangFiles(minecraftDir, pinned)
-        val temp = File(Paths.cache, "import-${System.nanoTime()}.jar")
+        val temp = File(Paths.cache, "import-${System.nanoTime()}.tmp")
         try {
             set { copy(message = "Lendo $name", fraction = 0f) }
             copyIn(open, size, temp)
+            // Um .json (o 26.3.json da versão) também vem por aqui: o seletor é o mesmo.
+            val looksJson = name.endsWith(".json", ignoreCase = true) ||
+                temp.inputStream().use { it.read() }.let { it == '{'.code }
+            if (looksJson) {
+                val info = LocalImport.inspectJson(temp, name, pinned)
+                log("JSON: ${info.message} (sha1 ${info.sha1})")
+                set { copy(detected = "JSON da versão ${info.versionId ?: "?"}", compatible = info.usable, message = info.message) }
+                if (!info.usable) throw IOException(info.message)
+                files.versionDir.mkdirs()
+                temp.copyTo(files.manifestFile, overwrite = true)
+                set { copy(step = Step.DONE, message = "JSON da versão ${pinned.version} importado", fraction = 1f) }
+                return@job
+            }
             val info = LocalImport.inspect(temp, name, pinned)
             log("JAR: ${info.message} (sha1 ${info.sha1})")
             set {
@@ -336,10 +349,51 @@ object Installer {
             }
             if (!info.compatible) throw IOException(info.message)
             LocalImport.place(temp, info, files)
-            set { copy(step = Step.DONE, message = "${info.kind.label.replaceFirstChar { it.uppercase() }} ${pinned.version} importado", fraction = 1f) }
+            // O JSON da versão: o do disco se já foi importado, senão o fixado, da Mojang (alguns KB).
+            val warnings = mutableListOf<String>()
+            if (!manifestReady(files)) {
+                set { copy(step = Step.METADATA, message = "Buscando o JSON da versão na Mojang", fraction = -1f) }
+                runCatching { files.manifest() }.onFailure { e ->
+                    warnings += "Não deu para buscar o JSON da versão: ${explain(e)}. Importe o ${pinned.version}.json ou tente de novo."
+                }
+            }
+            set {
+                copy(
+                    step = Step.DONE, warnings = warnings, fraction = 1f,
+                    message = "${info.kind.label.replaceFirstChar { it.uppercase() }} ${pinned.version} importado",
+                )
+            }
         } finally {
             temp.delete()
         }
+    }
+
+    fun manifestReady(files: MojangFiles): Boolean =
+        files.manifestFile.isFile && files.pinned.manifests.any { it.equals(Downloader.hashOf(files.manifestFile), true) }
+
+    /** Um erro de rede em palavras: sem internet, recusado pelo servidor, hash diferente. */
+    fun explain(e: Throwable): String {
+        val root = generateSequence(e) { it.cause }.last()
+        return when (root) {
+            is java.net.UnknownHostException -> "sem internet (não achou ${root.message})"
+            is java.net.SocketTimeoutException -> "a conexão demorou demais"
+            is java.net.ConnectException -> "não conectou (${root.message})"
+            is javax.net.ssl.SSLException -> "erro de segurança na conexão (${root.message})"
+            else -> e.message ?: root.javaClass.simpleName
+        }
+    }
+
+    /** Busca só o JSON da versão (alguns KB), pelo hash que o Horizon fixa. */
+    fun fetchManifest(context: Context) = job(Step.METADATA, "JSON da versão") {
+        val pinned = pinnedOrFail(context)
+        val files = MojangFiles(minecraftDir, pinned)
+        set { copy(message = "piston-meta.mojang.com/v1/packages/${pinned.manifests.first().take(8)}…/${pinned.version}.json") }
+        try {
+            files.manifest()
+        } catch (e: Exception) {
+            throw IOException("Não deu para buscar o JSON da versão ${pinned.version}: ${explain(e)}")
+        }
+        set { copy(step = Step.DONE, detected = "JSON da versão ${pinned.version}", compatible = true, message = "JSON da versão ${pinned.version} pronto", fraction = 1f) }
     }
 
     /** Importa uma instalação inteira (pasta escolhida no seletor de pastas do Android). */
@@ -387,7 +441,14 @@ object Installer {
         val pinned = pinnedOrFail(context)
         val files = MojangFiles(minecraftDir, pinned)
         set { copy(message = "Conferindo os arquivos importados", fraction = -1f) }
-        if (!files.manifestFile.isFile) runCatching { files.manifest() }
+        if (!manifestReady(files)) {
+            set { copy(message = "Buscando o JSON da versão na Mojang (alguns KB)") }
+            try {
+                files.manifest()
+            } catch (e: Exception) {
+                throw IOException("Falta o JSON da versão ${pinned.version} e não deu para buscá-lo: ${explain(e)}. Importe o ${pinned.version}.json (está em .minecraft/versions/${pinned.version}/) ou tente com internet.")
+            }
+        }
         val missing = LocalImport.requirements(files, Build.SUPPORTED_ABIS.first(), javaReady = true)
             .filter { it.required && !it.ok }
         if (missing.isNotEmpty()) {

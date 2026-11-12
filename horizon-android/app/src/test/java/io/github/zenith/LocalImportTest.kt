@@ -185,6 +185,44 @@ class LocalImportTest {
     }
 
     @Test
+    fun readsVersionJsonFiles() {
+        val original = """{"id":"9.9","downloads":{"client":{"sha1":"${sha1(client)}"}},"assetIndex":{"id":"34","sha1":"a"}}""".toByteArray()
+        val republished = """{"id":"9.9","downloads":{"client":{"sha1":"${sha1(client)}"}},"assetIndex":{"id":"34","sha1":"b"}}""".toByteArray()
+        val pinned = PinnedVersion("9.9", listOf(sha1(original)), sha1(client), sha1(server), 25)
+        val ok = LocalImport.inspectJson(file("9.9.json", original), "9.9.json", pinned)
+        assertTrue(ok.message, ok.usable)
+        val newer = LocalImport.inspectJson(file("r.json", republished), "9.9.json", pinned)
+        assertFalse(newer.usable)
+        assertTrue(newer.message, newer.message.contains("Buscar o JSON na Mojang"))
+        val other = LocalImport.inspectJson(file("o.json", """{"id":"1.21.4"}""".toByteArray()), "1.21.4.json", pinned)
+        assertTrue(other.message, other.message.contains("1.21.4"))
+        val fabric = LocalImport.inspectJson(file("f.json", """{"id":"fabric-loader-9.9","inheritsFrom":"9.9","mainClass":"x"}""".toByteArray()), "f.json", pinned)
+        assertTrue(fabric.message, fabric.message.contains("perfil do launcher"))
+        assertFalse(LocalImport.inspectJson(file("x.json", "não é json".toByteArray()), "x.json", pinned).usable)
+    }
+
+    @Test
+    fun aRepublishedAssetIndexIsReplacedByThePinnedOne() {
+        val sound = "ogg".toByteArray()
+        val pinnedIndex = """{"objects":{"minecraft/sounds/a.ogg":{"hash":"${sha1(sound)}","size":${sound.size}}}}"""
+        val localIndex = """{"objects":{"minecraft/sounds/a.ogg":{"hash":"${sha1(sound)}","size":${sound.size}},"minecraft/lang/xx.json":{"hash":"${"0".repeat(40)}","size":1}}}"""
+        val manifest = """{"id":"9.9","assetIndex":{"id":"34","sha1":"${sha1(pinnedIndex.toByteArray())}","url":"https://meta/34.json"},
+            "downloads":{"client":{"sha1":"c","url":"u"},"server":{"sha1":"s","url":"u"}},"libraries":[]}""".toByteArray()
+        val pinned = PinnedVersion("9.9", listOf(sha1(manifest)), "c", "s", 25)
+        val mc = File(dir, "inst/.minecraft")
+        File(mc, "versions/9.9").mkdirs(); File(mc, "versions/9.9/9.9.json").writeBytes(manifest)
+        File(mc, "assets/indexes").mkdirs(); File(mc, "assets/indexes/34.json").writeText(localIndex)
+        File(mc, "assets/objects/${sha1(sound).take(2)}").mkdirs(); File(mc, "assets/objects/${sha1(sound).take(2)}/${sha1(sound)}").writeBytes(sound)
+        val fetched = mutableListOf<String>()
+        val files = MojangFiles(File(dir, "w"), pinned) { url, _ -> fetched += url; pinnedIndex }
+        val report = LocalImport.importInstallation(LocalImport.FileTree(File(dir, "inst")), files, "arm64-v8a", { false }) { _, _, _ -> }
+        assertEquals(listOf("https://meta/34.json"), fetched)
+        assertTrue(File(dir, "w/assets/objects/${sha1(sound).take(2)}/${sha1(sound)}").isFile)
+        assertTrue(LocalImport.assetsComplete(files))
+        assertFalse(report.skipped.toString(), report.skipped.any { it.startsWith("índice") })
+    }
+
+    @Test
     fun checkLinesForExtrasAreTold() {
         assertTrue(Preparer.isExtra("the sounds missing: horizon-prepare sounds"))
         assertTrue(Preparer.isExtra("the languages missing: horizon-prepare languages"))

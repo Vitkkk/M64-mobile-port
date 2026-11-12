@@ -73,6 +73,7 @@ class InstallService : Service() {
                         Installer.importJava(name, size) { ctx.contentResolver.openInputStream(u) ?: throw java.io.IOException("Não deu para abrir $name") }
                     }
                     ACTION_PREPARE_LOCAL -> Installer.prepareLocal(ctx, keep)
+                    ACTION_FETCH_MANIFEST -> Installer.fetchManifest(ctx)
                     else -> Installer.run(ctx, keep)
                 }
                 watcher.cancel()
@@ -140,6 +141,7 @@ class InstallService : Service() {
         const val ACTION_IMPORT_TREE = "io.github.zenith.install.IMPORT_TREE"
         const val ACTION_IMPORT_JAVA = "io.github.zenith.install.IMPORT_JAVA"
         const val ACTION_PREPARE_LOCAL = "io.github.zenith.install.PREPARE_LOCAL"
+        const val ACTION_FETCH_MANIFEST = "io.github.zenith.install.FETCH_MANIFEST"
 
         fun start(context: Context, keepDownloads: Boolean) = launch(context, ACTION_DOWNLOAD, null, keepDownloads)
 

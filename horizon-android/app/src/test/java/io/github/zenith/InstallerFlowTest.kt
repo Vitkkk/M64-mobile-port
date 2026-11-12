@@ -46,6 +46,21 @@ class InstallerFlowTest {
     }
 
     @Test
+    fun aRepublishedJsonIsExplained() {
+        val pinned = GameVersions.pinned(context)
+        assumeTrue(pinned != null)
+        Paths.init(context)
+        Installer.reset()
+        // Como a republicação de 10/11 da Mojang: o mesmo client, outro índice de traduções.
+        val json = """{"id":"26.3","downloads":{"client":{"sha1":"${pinned!!.clientSha1}"}},"assetIndex":{"id":"34","sha1":"e99f9973047785b5a9d52eaf72020b97545053c9"}}""".toByteArray()
+        Installer.importJar(context, "26.3.json", json.size.toLong()) { json.inputStream() }
+        val s = Installer.state.value
+        assertEquals(Installer.Step.FAILED, s.step)
+        assertTrue(s.detected, s.detected.contains("JSON da versão 26.3"))
+        assertTrue(s.error!!, s.error!!.contains("Buscar o JSON na Mojang"))
+    }
+
+    @Test
     fun prepareRefusesWhileRequiredFilesAreMissing() {
         assumeTrue(GameVersions.pinned(context) != null)
         Paths.init(context)

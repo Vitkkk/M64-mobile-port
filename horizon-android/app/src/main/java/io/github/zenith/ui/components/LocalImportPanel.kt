@@ -70,17 +70,21 @@ fun LocalImportPanel(vm: LauncherViewModel) {
     val treePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
         if (uri != null) InstallService.launch(context, InstallService.ACTION_IMPORT_TREE, uri)
     }
+    val jsonPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) InstallService.launch(context, InstallService.ACTION_IMPORT_JAR, uri)
+    }
     val javaPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) InstallService.launch(context, InstallService.ACTION_IMPORT_JAVA, uri)
     }
     // Os tipos que o seletor mostra para um .jar variam entre gerenciadores de arquivos.
     val jarTypes = arrayOf("application/java-archive", "application/x-java-archive", "application/zip", "application/octet-stream", "*/*")
+    val jsonTypes = arrayOf("application/json", "text/plain", "application/octet-stream", "*/*")
 
     if (pinned == null || state.running) return
     Section("Importar do celular", subtitle = "Usa arquivos do Minecraft ${pinned.version} que já estão no aparelho (ex.: de outro launcher)") {
         Text(
-            "Escolha o ${pinned.version}.jar (ex.: .minecraft/versions/${pinned.version}/${pinned.version}.jar) ou a pasta .minecraft " +
-                "inteira. Pastas dentro de Android/data de outros apps o Android não deixa abrir.",
+            "Escolha o ${pinned.version}.jar e o ${pinned.version}.json (em .minecraft/versions/${pinned.version}/), " +
+                "ou a pasta .minecraft inteira. Pastas dentro de Android/data de outros apps o Android não deixa abrir.",
             style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(8.dp))
@@ -88,6 +92,7 @@ fun LocalImportPanel(vm: LauncherViewModel) {
             OutlinedButton(onClick = { jarPicker.launch(jarTypes) }) {
                 Icon(Icons.Filled.FileOpen, null); Spacer(Modifier.width(6.dp)); Text("Importar JAR local")
             }
+            OutlinedButton(onClick = { jsonPicker.launch(jsonTypes) }) { Text("Importar .json") }
         }
         Spacer(Modifier.height(4.dp))
         OutlinedButton(onClick = { treePicker.launch(null) }) {
@@ -112,10 +117,20 @@ fun LocalImportPanel(vm: LauncherViewModel) {
                     }
                 }
             }
-            val missingRequired = reqs.filter { it.required && !it.ok && !it.label.startsWith("Java") && !it.label.startsWith("JSON") }
+            // O Java falta mas é baixado sozinho no preparo; o resto precisa estar aqui antes.
+            val missingRequired = reqs.filter { it.required && !it.ok && !it.label.startsWith("Java") }
+            val jsonMissing = reqs.any { it.label.startsWith("JSON") && !it.ok }
             val serverMissing = reqs.any { it.label.startsWith("Servidor") && !it.ok }
             val javaMissing = reqs.any { it.label.startsWith("Java") && !it.ok }
             Spacer(Modifier.height(8.dp))
+            if (jsonMissing) {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = { jsonPicker.launch(jsonTypes) }) { Text("Importar o ${pinned.version}.json") }
+                    TextButton(onClick = { InstallService.launch(context, InstallService.ACTION_FETCH_MANIFEST, null) }) {
+                        Text("Buscar o JSON na Mojang")
+                    }
+                }
+            }
             if (serverMissing) {
                 TextButton(onClick = { jarPicker.launch(jarTypes) }) { Text("Selecionar o server.jar ${pinned.version}") }
             }
