@@ -57,6 +57,7 @@ import io.github.zenith.ui.Tab
 import io.github.zenith.install.Installer
 import io.github.zenith.ui.components.BlockIcon
 import io.github.zenith.ui.components.InstallPanel
+import io.github.zenith.ui.components.LocalImportPanel
 import io.github.zenith.ui.components.rememberInstallStarter
 import io.github.zenith.ui.components.Chip
 import io.github.zenith.ui.components.Section
@@ -135,7 +136,13 @@ fun HomeScreen(vm: LauncherViewModel, onNavigate: (Tab, String?) -> Unit) {
         }
 
         if (!installed || install.running || install.step == Installer.Step.DONE || install.step == Installer.Step.FAILED) {
-            InstallPanel(vm, title = if (installed) "Instalação" else "Instalar o Minecraft ${BuildConfig.GAME_VERSION}", onGoToAccount = { onNavigate(Tab.ACCOUNT, null) })
+            InstallPanel(
+                vm,
+                title = if (installed) "Instalação" else "Instalar o Minecraft ${BuildConfig.GAME_VERSION}",
+                onGoToAccount = { onNavigate(Tab.ACCOUNT, null) },
+                onPlay = { play() },
+            )
+            if (!installed) LocalImportPanel(vm)
         }
 
         if (problem != null && problem !is GameLauncher.Problem.NoResources) {

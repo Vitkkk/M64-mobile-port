@@ -148,6 +148,38 @@ login, depois que o jogo foi instalado. Não há como pular essa verificação p
 de teste em `DevFlags` só vale para abrir o jogo já instalado). O login Microsoft precisa de um
 Client ID do Azure aprovado pela Mojang (Ajustes → Conta Microsoft).
 
+### Importar do celular (JAR local ou instalação de outro launcher)
+
+No Início (ou Ajustes → Instalar o jogo), **Importar do celular**:
+
+- **Importar JAR local**: escolha o `26.3.jar` no seletor do Android (ex.:
+  `MJLauncher/.minecraft/versions/26.3/26.3.jar`). O Zenith lê o `version.json` de dentro do JAR,
+  vê se é client ou servidor e confere o SHA-1 contra o que o Horizon fixa. JARs de outra versão
+  ou modificados (Fabric, Forge, OptiFine, patches) são recusados com o motivo.
+- **Importar instalação existente**: escolha a pasta `.minecraft`, a pasta do launcher que a
+  contém ou a pasta da versão. O Zenith acha `versions/26.3/26.3.json` e `.jar`, `libraries/` e
+  `assets/`, copia o que o `horizon-prepare` usa e confere cada arquivo pelo hash; o que não
+  confere fica de fora e é listado. Não precisa de permissão de armazenamento (Storage Access
+  Framework); pastas dentro de `Android/data` de outros apps o Android não deixa abrir.
+- A lista **O que o Horizon precisa** mostra o que está pronto e o que falta:
+
+  | Item | Obrigatório | De onde |
+  |---|---|---|
+  | JSON da versão | sim | da instalação; se o launcher o alterou, da Mojang pelo hash (alguns KB) |
+  | Client 26.3 | sim | JAR local ou instalação |
+  | **Servidor 26.3** | sim | o `horizon-prepare` roda o gerador de dados dele, e launchers de celular não o guardam: selecione o `server.jar` (minecraft.net) ou use o BAIXAR |
+  | Bibliotecas do client | sim | da instalação (launchers Android às vezes trocam as do LWJGL: o BAIXAR completa) |
+  | Assets | não | da instalação; sem eles o jogo fica mudo e só em inglês |
+  | Java 25 | sim | baixado do GitHub (~38 MB) ou importado (`.tar.xz` fixado) |
+
+- **PREPARAR E INSTALAR** só fica ativo quando o obrigatório está lá; roda o mesmo preparo do
+  BAIXAR (com `--complete` se os assets estiverem todos) e só marca o jogo instalado depois que o
+  `horizon-prepare --check` e a validação do Zenith passam.
+- O **BAIXAR** reaproveita o que foi importado e baixa só o que falta.
+
+Um JAR no celular não prova que você tem o jogo: abrir a partida continua pedindo a conta
+Microsoft dona do Java Edition (ou a chave de teste temporária).
+
 ### Alternativa avançada: preparar no PC e importar o ZIP
 
 Para quem já tem os recursos preparados (ou não quer baixar no celular):

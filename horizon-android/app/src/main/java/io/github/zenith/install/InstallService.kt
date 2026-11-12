@@ -44,6 +44,8 @@ class InstallService : Service() {
         }
         if (work?.isActive != true) {
             val keep = intent?.getBooleanExtra(EXTRA_KEEP, false) ?: false
+            val action = intent?.action ?: ACTION_DOWNLOAD
+            val uri = intent?.data
             work = scope.launch {
                 val watcher = launch {
                     var last = 0L
@@ -55,7 +57,24 @@ class InstallService : Service() {
                         }
                     }
                 }
-                Installer.run(applicationContext, keep)
+                val ctx = applicationContext
+                when (action) {
+                    ACTION_IMPORT_JAR -> uri?.let { u ->
+                        val (name, size) = SafTree.describe(ctx, u)
+                        Installer.importJar(ctx, name, size) { ctx.contentResolver.openInputStream(u) ?: throw java.io.IOException("Não deu para abrir $name") }
+                    }
+                    ACTION_IMPORT_TREE -> uri?.let { u ->
+                        runCatching { SafTree.from(ctx, u) }
+                            .onSuccess { Installer.importInstallation(ctx, it) }
+                            .onFailure { Installer.importJar(ctx, "pasta", -1) { throw java.io.IOException("Não deu para abrir a pasta: ${it.message}") } }
+                    }
+                    ACTION_IMPORT_JAVA -> uri?.let { u ->
+                        val (name, size) = SafTree.describe(ctx, u)
+                        Installer.importJava(name, size) { ctx.contentResolver.openInputStream(u) ?: throw java.io.IOException("Não deu para abrir $name") }
+                    }
+                    ACTION_PREPARE_LOCAL -> Installer.prepareLocal(ctx, keep)
+                    else -> Installer.run(ctx, keep)
+                }
                 watcher.cancel()
                 val s = Installer.state.value
                 stopForeground(STOP_FOREGROUND_DETACH)
@@ -88,7 +107,13 @@ class InstallService : Service() {
         )
         val builder = if (Build.VERSION.SDK_INT >= 26) Notification.Builder(this, CHANNEL) else @Suppress("DEPRECATION") Notification.Builder(this)
         builder.setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle(if (s.step == Installer.Step.DONE) "Minecraft ${s.version} instalado" else "Instalando Minecraft ${s.version}")
+            .setContentTitle(
+                when {
+                    s.step == Installer.Step.DONE -> s.message.ifBlank { "Pronto" }
+                    s.source.isNotBlank() -> "Importando: ${s.source}"
+                    else -> "Instalando Minecraft ${s.version}"
+                }
+            )
             .setContentText(s.error ?: "${s.step.label}: ${s.message}".take(120))
             .setContentIntent(open)
             .setOnlyAlertOnce(true)
@@ -110,8 +135,18 @@ class InstallService : Service() {
         const val ACTION_CANCEL = "io.github.zenith.install.CANCEL"
         const val EXTRA_KEEP = "keep"
 
-        fun start(context: Context, keepDownloads: Boolean) {
-            val intent = Intent(context, InstallService::class.java).putExtra(EXTRA_KEEP, keepDownloads)
+        const val ACTION_DOWNLOAD = "io.github.zenith.install.DOWNLOAD"
+        const val ACTION_IMPORT_JAR = "io.github.zenith.install.IMPORT_JAR"
+        const val ACTION_IMPORT_TREE = "io.github.zenith.install.IMPORT_TREE"
+        const val ACTION_IMPORT_JAVA = "io.github.zenith.install.IMPORT_JAVA"
+        const val ACTION_PREPARE_LOCAL = "io.github.zenith.install.PREPARE_LOCAL"
+
+        fun start(context: Context, keepDownloads: Boolean) = launch(context, ACTION_DOWNLOAD, null, keepDownloads)
+
+        /** Roda [action] no serviço; [uri] é o arquivo ou a pasta escolhida no seletor. */
+        fun launch(context: Context, action: String, uri: android.net.Uri?, keep: Boolean = false) {
+            val intent = Intent(context, InstallService::class.java).setAction(action).putExtra(EXTRA_KEEP, keep)
+            if (uri != null) intent.setData(uri).addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent) else context.startService(intent)
         }
 

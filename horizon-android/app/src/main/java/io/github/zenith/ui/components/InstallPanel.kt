@@ -52,7 +52,12 @@ import io.github.zenith.ui.theme.Mono
  * Cancelar, Tentar de novo e o log. O trabalho roda no InstallService; isto só mostra.
  */
 @Composable
-fun InstallPanel(vm: LauncherViewModel, title: String = "Instalar o jogo", onGoToAccount: (() -> Unit)? = null) {
+fun InstallPanel(
+    vm: LauncherViewModel,
+    title: String = "Instalar o jogo",
+    onGoToAccount: (() -> Unit)? = null,
+    onPlay: (() -> Unit)? = null,
+) {
     val context = LocalContext.current
     val state by Installer.state.collectAsState()
     val version = remember { io.github.zenith.install.GameVersions.pinned(context)?.version ?: "?" }
@@ -67,6 +72,9 @@ fun InstallPanel(vm: LauncherViewModel, title: String = "Instalar o jogo", onGoT
     Section(title, subtitle = "Minecraft: Java Edition $version · Horizon (Rust)") {
         when {
             state.running -> {
+                SourceLine(state)
+                StepList(state)
+                Spacer(Modifier.height(6.dp))
                 Text(state.step.label, fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(6.dp))
                 LinearProgressIndicator(progress = { state.overall }, modifier = Modifier.fillMaxWidth())
@@ -98,21 +106,35 @@ fun InstallPanel(vm: LauncherViewModel, title: String = "Instalar o jogo", onGoT
                     style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            state.step == Installer.Step.DONE || vm.resources.ready -> {
+            vm.resources.ready && state.step != Installer.Step.FAILED -> {
+                if (state.step == Installer.Step.DONE) { SourceLine(state); StepList(state) }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Filled.CheckCircle, null, tint = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.width(8.dp))
-                    Text(if (state.step == Installer.Step.DONE) "Instalação concluída" else "Instalado", fontWeight = FontWeight.Bold)
+                    Text(if (state.step == Installer.Step.DONE) "Instalação concluída!" else "Instalado", fontWeight = FontWeight.Bold)
                 }
                 Text(vm.resources.message, style = MaterialTheme.typography.bodySmall)
+                state.warnings.forEach { Text("⚠ $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary) }
+                if (onPlay != null) {
+                    Spacer(Modifier.height(6.dp))
+                    Button(onClick = onPlay, shape = RoundedCornerShape(12.dp)) { Text("JOGAR", fontWeight = FontWeight.Black) }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     TextButton(onClick = { start() }) { Text("Instalar de novo") }
                     if (state.step == Installer.Step.DONE) TextButton(onClick = { showLog = true }) { Text("Ver log") }
                 }
             }
             else -> {
+                if (state.step == Installer.Step.FAILED || state.step == Installer.Step.DONE) {
+                    SourceLine(state)
+                    StepList(state)
+                }
                 if (state.step == Installer.Step.FAILED) {
                     Text(state.error ?: "A instalação parou", color = MaterialTheme.colorScheme.error)
+                    Spacer(Modifier.height(8.dp))
+                } else if (state.step == Installer.Step.DONE) {
+                    Text("✓ ${state.message}", color = MaterialTheme.colorScheme.primary, style = MaterialTheme.typography.bodyMedium)
+                    state.warnings.forEach { Text("⚠ $it", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.tertiary) }
                     Spacer(Modifier.height(8.dp))
                 }
                 Text(
@@ -156,6 +178,31 @@ fun InstallPanel(vm: LauncherViewModel, title: String = "Instalar o jogo", onGoT
             confirmButton = { TextButton(onClick = { showLog = false }) { Text("Fechar") } },
         )
     }
+}
+
+/** O arquivo ou pasta da importação, o que foi detectado nele e se é compatível. */
+@Composable
+private fun SourceLine(state: Installer.State) {
+    if (state.source.isBlank()) return
+    Text("Importando: ${state.source}", fontWeight = FontWeight.Bold, style = MaterialTheme.typography.bodyMedium)
+    if (state.detected.isNotBlank()) {
+        val ok = state.compatible
+        Text(
+            "Detectado: ${state.detected}" + when (ok) { true -> " · compatível ✓"; false -> " · incompatível ✗"; null -> "" },
+            style = MaterialTheme.typography.bodySmall,
+            color = when (ok) { false -> MaterialTheme.colorScheme.error; true -> MaterialTheme.colorScheme.primary; null -> MaterialTheme.colorScheme.onSurfaceVariant },
+        )
+    }
+    Spacer(Modifier.height(4.dp))
+}
+
+/** "Verificando o JAR... ✓" para cada etapa já feita, e a atual com "...". */
+@Composable
+private fun StepList(state: Installer.State) {
+    if (state.done.isEmpty() && !state.running) return
+    state.done.forEach { Text("${it.label}... ✓", style = MaterialTheme.typography.bodySmall) }
+    if (state.running) Text("${state.step.label}...", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Bold)
+    if (state.step == Installer.Step.FAILED) Text("✗ parou aqui", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
 }
 
 /** Começa a instalação, pedindo antes a permissão de notificação (Android 13+). */

@@ -62,6 +62,7 @@ import io.github.zenith.game.GameLauncher
 import io.github.zenith.install.Installer
 import io.github.zenith.ui.LauncherViewModel
 import io.github.zenith.ui.components.InstallPanel
+import io.github.zenith.ui.components.LocalImportPanel
 import io.github.zenith.ui.components.ChoiceRow
 import io.github.zenith.ui.components.NavRow
 import io.github.zenith.ui.components.Section
@@ -250,6 +251,7 @@ private fun ResourcesPage(vm: LauncherViewModel) {
         }
     }
     InstallPanel(vm, title = "Baixar e instalar no celular")
+    LocalImportPanel(vm)
     var cache by remember(vm.busy) { mutableStateOf(-1L) }
     androidx.compose.runtime.LaunchedEffect(vm.busy) {
         cache = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { Installer.cacheSize() }

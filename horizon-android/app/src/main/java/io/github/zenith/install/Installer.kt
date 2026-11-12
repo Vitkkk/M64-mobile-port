@@ -29,6 +29,8 @@ import java.io.IOException
 object Installer {
     enum class Step(val label: String) {
         IDLE("Pronto para baixar"),
+        VERIFY("Verificando o JAR"),
+        IMPORT("Copiando os arquivos locais"),
         ACCOUNT("Conferindo a conta"),
         METADATA("Lendo os manifestos da Mojang"),
         DOWNLOAD("Baixando os arquivos do jogo"),
@@ -52,11 +54,21 @@ object Installer {
         val filesTotal: Int = 0,
         val error: String? = null,
         val startedAt: Long = 0,
+        /** Etapas já concluídas nesta operação, para a lista com ✓. */
+        val done: List<Step> = emptyList(),
+        /** O arquivo ou pasta escolhido (importação). */
+        val source: String = "",
+        /** O que foi detectado nele (versão, tipo) e se é compatível. */
+        val detected: String = "",
+        val compatible: Boolean? = null,
+        /** Avisos de uma instalação que terminou sem tudo (ex.: sem sons). */
+        val warnings: List<String> = emptyList(),
     ) {
         val running get() = step != Step.IDLE && step != Step.DONE && step != Step.FAILED
         /** Progresso geral aproximado, pelas etapas e pelo andamento da atual. */
         val overall: Float get() {
             val (start, span) = when (step) {
+                Step.VERIFY, Step.IMPORT -> 0f to 0.5f
                 Step.ACCOUNT, Step.METADATA -> 0f to 0.02f
                 Step.DOWNLOAD -> 0.02f to 0.58f
                 Step.JAVA -> 0.60f to 0.07f
@@ -84,8 +96,14 @@ object Installer {
         if (!_state.value.running) _state.value = State()
     }
 
+    @Synchronized
     private fun set(update: State.() -> State) {
-        _state.value = _state.value.update()
+        val before = _state.value
+        var after = before.update()
+        if (after.step != before.step && before.running && before.step !in after.done) {
+            after = after.copy(done = after.done + before.step)
+        }
+        _state.value = after
     }
 
     /** O que impede de baixar agora (sem rede), ou null. */
@@ -186,39 +204,8 @@ object Installer {
             }
             check()
 
-            // 4. Java
-            val runtime = JavaRuntime.forAbi(Build.SUPPORTED_ABIS.first())
-                ?: throw IOException("Não há Java 25 para Android neste processador.")
-            val prep = preparer(context)
-            preparer = prep
-            set { copy(step = Step.JAVA, message = "OpenJDK 25 para Android", fraction = 0f, bytes = 0, bytesTotal = runtime.size, files = 0, filesTotal = 1) }
-            val jre = File(Paths.internal, "installer/jre25")
-            JavaRuntime.install(runtime, jre, Downloader(threads = 1), { cancelRequested }) { p ->
-                set { copy(bytes = p.bytes, bytesTotal = p.bytesTotal, speed = p.speed, fraction = if (p.bytesTotal > 0) p.bytes.toFloat() / p.bytesTotal else -1f) }
-            }
-            check()
-
-            // 5. Preparo
-            set { copy(step = Step.PREPARE, message = "Abrindo o kit do Horizon", fraction = -1f, bytes = 0, bytesTotal = 0, speed = 0) }
-            context.assets.open(GameVersions.KIT_ASSET).use { prep.unpackKit(it) }
-            val output = File(Paths.resourcesRoot, ".preparing")
-            output.deleteRecursively()
-            prep.prepare(
-                minecraftDir, files.serverJar, output,
-                onMessage = { m -> log(m); set { copy(message = m) } },
-                onFraction = { f -> set { copy(fraction = f) } },
-            )
-            check()
-
-            // 6. No lugar
-            set { copy(step = Step.FINISH, message = "Colocando os recursos no lugar", fraction = -1f) }
-            GameResources.publish(output)
-            for (dir in listOf(jre, File(Paths.internal, "installer/kit/.local"), File(Paths.internal, "installer/tmp"))) {
-                dir.deleteRecursively()
-            }
-            if (!keepDownloads) minecraftDir.deleteRecursively()
-            log("Instalação concluída")
-            set { copy(step = Step.DONE, message = "Minecraft ${pinned.version} pronto para jogar", fraction = 1f, error = null) }
+            // 4-6. Java, preparo e recursos no lugar (o mesmo da importação local)
+            prepareStage(context, pinned, files, complete = true, keepDownloads = keepDownloads)
         } catch (e: Throwable) {
             val cancelled = cancelRequested || e is Downloader.Cancelled
             val msg = if (cancelled) "Cancelado. O que já foi baixado fica guardado para a próxima vez." else (e.message ?: e.javaClass.simpleName)
@@ -231,6 +218,182 @@ object Installer {
 
     private fun check() {
         if (cancelRequested) throw Downloader.Cancelled()
+    }
+
+    val jreDir: File get() = File(Paths.internal, "installer/jre25")
+
+    fun javaReady(): Boolean =
+        JavaRuntime.forAbi(Build.SUPPORTED_ABIS.firstOrNull() ?: "")?.let { JavaRuntime.installed(it, jreDir) } == true
+
+    /** Java (baixado, se ainda não foi importado), horizon-prepare e a troca da pasta de recursos. */
+    private fun prepareStage(context: Context, pinned: PinnedVersion, files: MojangFiles, complete: Boolean, keepDownloads: Boolean) {
+        val runtime = JavaRuntime.forAbi(Build.SUPPORTED_ABIS.first())
+            ?: throw IOException("Não há Java 25 para Android neste processador.")
+        val prep = preparer(context)
+        preparer = prep
+        if (!JavaRuntime.installed(runtime, jreDir)) {
+            set { copy(step = Step.JAVA, message = "OpenJDK 25 para Android", fraction = 0f, bytes = 0, bytesTotal = runtime.size, files = 0, filesTotal = 1) }
+            JavaRuntime.install(runtime, jreDir, Downloader(threads = 1), { cancelRequested }) { p ->
+                set { copy(bytes = p.bytes, bytesTotal = p.bytesTotal, speed = p.speed, fraction = if (p.bytesTotal > 0) p.bytes.toFloat() / p.bytesTotal else -1f) }
+            }
+            check()
+        }
+        set { copy(step = Step.PREPARE, message = "Abrindo o kit do Horizon", fraction = -1f, bytes = 0, bytesTotal = 0, speed = 0) }
+        context.assets.open(GameVersions.KIT_ASSET).use { prep.unpackKit(it) }
+        val output = File(Paths.resourcesRoot, ".preparing")
+        output.deleteRecursively()
+        val gaps = prep.prepare(
+            minecraftDir, files.serverJar, output,
+            onMessage = { m -> log(m); set { copy(message = m) } },
+            onFraction = { f -> set { copy(fraction = f) } },
+            complete = complete,
+        )
+        check()
+        set { copy(step = Step.FINISH, message = "Validando e colocando os recursos no lugar", fraction = -1f) }
+        GameResources.publish(output)
+        val status = GameResources.status()
+        if (!status.ready) throw IOException("Os recursos preparados não passaram na validação: ${status.message}")
+        for (dir in listOf(jreDir, File(Paths.internal, "installer/kit/.local"), File(Paths.internal, "installer/tmp"))) {
+            dir.deleteRecursively()
+        }
+        if (!keepDownloads) minecraftDir.deleteRecursively()
+        val warnings = gaps.map { it.substringBefore(" missing").let { what -> "Faltou: ${translateExtra(what)}" } }
+        log("Instalação concluída" + if (warnings.isEmpty()) "" else " (${warnings.joinToString()})")
+        set { copy(step = Step.DONE, message = "Minecraft ${pinned.version} pronto para jogar", fraction = 1f, error = null, warnings = warnings) }
+    }
+
+    private fun translateExtra(what: String) = when {
+        what.contains("sounds") -> "os sons (o jogo fica mudo)"
+        what.contains("languages") -> "os idiomas (só inglês)"
+        what.contains("panorama") -> "o panorama do título"
+        what.contains("Unifont") -> "as fontes Unifont"
+        what.contains("packs") -> "os packs embutidos"
+        else -> what
+    }
+
+    // --- Importação local (sem baixar o que já está no celular) ---
+
+    /** Roda [block] como uma operação com estado, cancelamento e log. */
+    private fun job(first: Step, source: String, block: () -> Unit) {
+        if (_state.value.running) return
+        cancelRequested = false
+        _state.value = State(step = first, source = source, startedAt = System.currentTimeMillis())
+        try {
+            logFile.parentFile?.mkdirs()
+            log("Zenith: ${first.label} — $source")
+            block()
+        } catch (e: Throwable) {
+            val cancelled = cancelRequested || e is Downloader.Cancelled
+            val msg = if (cancelled) "Cancelado. O que já foi copiado fica guardado." else (e.message ?: e.javaClass.simpleName)
+            runCatching { log("ERRO: $msg\n${e.stackTraceToString()}") }
+            set { copy(step = Step.FAILED, error = msg, message = msg) }
+        } finally {
+            preparer = null
+        }
+    }
+
+    private fun pinnedOrFail(context: Context): PinnedVersion =
+        GameVersions.pinned(context) ?: throw IOException("Este APK foi compilado sem o preparador do Horizon (prepare-kit.zip).")
+
+    /** Copia um arquivo escolhido no seletor para [target], com progresso em bytes. */
+    private fun copyIn(open: () -> java.io.InputStream, total: Long, target: File) {
+        target.parentFile?.mkdirs()
+        var done = 0L
+        open().use { input ->
+            target.outputStream().use { out ->
+                val buf = ByteArray(1 shl 16)
+                while (true) {
+                    check()
+                    val n = input.read(buf)
+                    if (n < 0) break
+                    out.write(buf, 0, n)
+                    done += n
+                    if (done % (1 shl 20) < (1 shl 16)) set { copy(bytes = done, bytesTotal = total, fraction = if (total > 0) done.toFloat() / total else -1f) }
+                }
+            }
+        }
+    }
+
+    /**
+     * Importa um JAR (client ou server) escolhido no celular: copia, lê a versão e o tipo, confere o
+     * SHA-1 contra o Horizon fixado e põe no lugar. Termina em DONE só com o JAR; o preparo é outra
+     * operação (precisa também do servidor e das bibliotecas).
+     */
+    fun importJar(context: Context, name: String, size: Long, open: () -> java.io.InputStream) = job(Step.VERIFY, name) {
+        val pinned = pinnedOrFail(context)
+        val files = MojangFiles(minecraftDir, pinned)
+        val temp = File(Paths.cache, "import-${System.nanoTime()}.jar")
+        try {
+            set { copy(message = "Lendo $name", fraction = 0f) }
+            copyIn(open, size, temp)
+            val info = LocalImport.inspect(temp, name, pinned)
+            log("JAR: ${info.message} (sha1 ${info.sha1})")
+            set {
+                copy(
+                    detected = listOfNotNull(info.versionId?.let { "Minecraft $it" }, info.kind.label.takeIf { info.kind != LocalImport.Kind.OTHER }).joinToString(" · ").ifBlank { "não reconhecido" },
+                    compatible = info.compatible, message = info.message,
+                )
+            }
+            if (!info.compatible) throw IOException(info.message)
+            LocalImport.place(temp, info, files)
+            set { copy(step = Step.DONE, message = "${info.kind.label.replaceFirstChar { it.uppercase() }} ${pinned.version} importado", fraction = 1f) }
+        } finally {
+            temp.delete()
+        }
+    }
+
+    /** Importa uma instalação inteira (pasta escolhida no seletor de pastas do Android). */
+    fun importInstallation(context: Context, tree: LocalImport.Tree) = job(Step.IMPORT, tree.name) {
+        val pinned = pinnedOrFail(context)
+        val files = MojangFiles(minecraftDir, pinned)
+        val report = LocalImport.importInstallation(tree, files, Build.SUPPORTED_ABIS.first(), { cancelRequested }) { done, total, current ->
+            set { copy(files = done, filesTotal = total, message = current, fraction = if (total > 0) done.toFloat() / total else -1f) }
+        }
+        log("Importação: ${report.description}; ${report.copied} copiados, ${report.reused} já estavam; fora: ${report.skipped}")
+        val client = files.clientJar.isFile
+        set {
+            copy(
+                step = Step.DONE,
+                detected = report.description,
+                compatible = client,
+                warnings = report.skipped.take(8),
+                message = "${report.copied} arquivos copiados" + (if (report.reused > 0) ", ${report.reused} já estavam" else "") +
+                    (if (report.skipped.isNotEmpty()) "; ${report.skipped.size} não conferiram e ficaram de fora" else ""),
+                fraction = 1f,
+            )
+        }
+    }
+
+    /** Importa o Java 25 para Android (.tar.xz) já baixado, conferido pelo SHA-256 fixado. */
+    fun importJava(name: String, size: Long, open: () -> java.io.InputStream) = job(Step.JAVA, name) {
+        val runtime = JavaRuntime.forAbi(Build.SUPPORTED_ABIS.first()) ?: throw IOException("Não há Java 25 para Android neste processador.")
+        val archive = File(jreDir.parentFile, jreDir.name + ".tar.xz")
+        copyIn(open, size, archive)
+        val sha = Downloader.hashOf(archive, "SHA-256")
+        if (!sha.equals(runtime.sha256, true)) {
+            archive.delete()
+            throw IOException("Este .tar.xz não é o OpenJDK 25 para Android fixado (SHA-256 $sha). Use ${runtime.url.substringAfterLast('/')}.")
+        }
+        set { copy(message = "Descompactando", fraction = -1f) }
+        JavaRuntime.install(runtime, jreDir, Downloader(threads = 1), { cancelRequested }) {}
+        set { copy(step = Step.DONE, message = "Java 25 pronto", fraction = 1f) }
+    }
+
+    /**
+     * Prepara a partir dos arquivos importados: confere o que é obrigatório, baixa só o Java se
+     * faltar, roda o horizon-prepare (com --complete se os assets estiverem todos lá) e valida.
+     */
+    fun prepareLocal(context: Context, keepFiles: Boolean) = job(Step.VERIFY, "arquivos importados") {
+        val pinned = pinnedOrFail(context)
+        val files = MojangFiles(minecraftDir, pinned)
+        set { copy(message = "Conferindo os arquivos importados", fraction = -1f) }
+        if (!files.manifestFile.isFile) runCatching { files.manifest() }
+        val missing = LocalImport.requirements(files, Build.SUPPORTED_ABIS.first(), javaReady = true)
+            .filter { it.required && !it.ok }
+        if (missing.isNotEmpty()) {
+            throw IOException("Ainda falta: " + missing.joinToString("; ") { "${it.label} (${it.detail})" })
+        }
+        prepareStage(context, pinned, files, complete = LocalImport.assetsComplete(files), keepDownloads = keepFiles)
     }
 
     private fun log(line: String) {

@@ -57,18 +57,36 @@ class Preparer(
     }
 
     /** Prepara em [output]; [onMessage] e [onFraction] recebem o progresso do preparador. */
-    fun prepare(minecraftDir: File, serverJar: File, output: File, onMessage: (String) -> Unit, onFraction: (Float) -> Unit) {
-        val code = run(
-            listOf(
-                "--root", kitDir.path, "--prepare",
-                "--minecraft-dir", minecraftDir.path, "--server-jar", serverJar.path,
-                "--output", output.path, "--complete", "--progress", "json",
-            ),
-            onMessage, onFraction,
+    /**
+     * Prepara em [output]. Com [complete] (os assets estão todos lá) também copia os sons e exige
+     * que o `--check` passe inteiro. Sem ele (importação sem assets), aceita que faltem só os
+     * extras que o Horizon deixa faltar (sons, idiomas, panorama, fontes, packs: check.rs EXTRAS),
+     * e devolve essa lista para a tela avisar.
+     */
+    fun prepare(
+        minecraftDir: File,
+        serverJar: File,
+        output: File,
+        onMessage: (String) -> Unit,
+        onFraction: (Float) -> Unit,
+        complete: Boolean = true,
+    ): List<String> {
+        val args = mutableListOf(
+            "--root", kitDir.path, "--prepare",
+            "--minecraft-dir", minecraftDir.path, "--server-jar", serverJar.path,
+            "--output", output.path, "--progress", "json",
         )
+        if (complete) args += "--complete"
+        val code = run(args, onMessage, onFraction)
         if (code != 0) throw IOException(lastError ?: "O horizon-prepare terminou com código $code (veja o log da instalação)")
-        val check = run(listOf("--root", kitDir.path, "--check", "--output", output.path), onMessage, {})
-        if (check != 0) throw IOException("A preparação ficou incompleta: ${lastLines.takeLast(3).joinToString(" · ")}")
+        val gaps = mutableListOf<String>()
+        val check = run(listOf("--root", kitDir.path, "--check", "--output", output.path), { gaps += it }, {})
+        if (check == 0) return emptyList()
+        val serious = gaps.filterNot { isExtra(it) }
+        if (complete || serious.isNotEmpty() || gaps.isEmpty()) {
+            throw IOException("A preparação ficou incompleta: ${(serious.ifEmpty { gaps }).take(3).joinToString(" · ")}")
+        }
+        return gaps
     }
 
     @Volatile var lastError: String? = null
@@ -129,6 +147,10 @@ class Preparer(
     }
 
     companion object {
+        /** Uma linha do `--check` que é só um extra faltando ("the sounds missing: horizon-prepare sounds"). */
+        fun isExtra(line: String): Boolean =
+            Regex("missing: horizon-prepare (packs|panorama|fonts|languages|sounds)$").containsMatchIn(line.trim())
+
         /** Lê uma linha de `--progress json` (para os testes e para quem quiser reaproveitar). */
         fun parseProgress(line: String): Pair<String, Any>? {
             val o = runCatching { JSONObject(line) }.getOrNull() ?: return null
