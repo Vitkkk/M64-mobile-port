@@ -2,6 +2,8 @@ package io.github.zenith.ui.screens
 
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -205,8 +207,9 @@ private fun BrowseList(vm: LauncherViewModel) {
             onDismissRequest = { details = null },
             title = { Text(p.name) },
             text = {
-                LazyColumn {
-                    item {
+                // Column com rolagem: LazyColumn dentro do AlertDialog não fica estável.
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    run {
                         Text("${p.kindLabel} · v${p.version} · ${p.license}", style = MaterialTheme.typography.labelLarge)
                         Text("Autores: ${p.authors.joinToString()}", style = MaterialTheme.typography.bodySmall)
                         Text("Código: ${p.source}", style = MaterialTheme.typography.bodySmall)

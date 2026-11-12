@@ -1,6 +1,8 @@
 package io.github.zenith.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material3.Button
 import androidx.compose.runtime.collectAsState
@@ -203,11 +205,13 @@ private fun InstanceDialog(
     var world by remember { mutableStateOf(initial?.quickWorld ?: "") }
     var args by remember { mutableStateOf(initial?.extraArgs ?: "") }
     var layout by remember { mutableStateOf(initial?.layout ?: "") }
+    @Composable fun item(content: @Composable () -> Unit) = content()
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (initial == null) "Nova instância" else "Editar instância") },
         text = {
-            LazyColumn(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            // Column com rolagem, não LazyColumn: a lista é curta e o AlertDialog mede o conteúdo.
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 item { OutlinedTextField(name, { name = it.take(32) }, label = { Text("Nome") }, singleLine = true) }
                 item {
                     ChoiceRow(

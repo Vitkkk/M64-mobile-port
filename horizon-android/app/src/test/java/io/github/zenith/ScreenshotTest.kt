@@ -38,6 +38,11 @@ class ScreenshotTest {
             val ctx = ApplicationProvider.getApplicationContext<Context>()
             Paths.init(ctx)
             LauncherSettings.get(ctx).acceptedNotice = true
+            // O preparador "instalado" (arquivos vazios), para o painel mostrar o estado real.
+            Paths.nativeLibDir.mkdirs()
+            for (lib in listOf("libhorizon_prepare.so", "libzenith_java.so", "libzenith_javac.so", "libc++_shared.so")) {
+                File(Paths.nativeLibDir, lib).writeText("")
+            }
             if (AccountStore.all().isEmpty()) {
                 LauncherSettings.get(ctx).selectedAccount = AccountStore.addOffline("Steve_BR").id
             }
@@ -65,6 +70,14 @@ class ScreenshotTest {
     fun screens() {
         shot("01-inicio")
         tab("Instâncias"); shot("02-instancias")
+        // O diálogo de nova instância abre e fecha sem travar (uma LazyColumn dentro do
+        // AlertDialog o deixava recompondo sem parar). É outra janela: não entra no print.
+        compose.onAllNodesWithText("Nova instância", useUnmergedTree = true)[0].performClick()
+        compose.waitForIdle()
+        compose.onAllNodesWithText("Criar e BAIXAR")[0].assertExists()
+        compose.onAllNodesWithText("Versão do Minecraft")[0].assertExists()
+        compose.onAllNodesWithText("Cancelar")[0].performClick()
+        compose.waitForIdle()
         tab("Mods"); shot("03-mods")
         tab("Conta"); shot("04-conta")
         tab("Controles"); shot("05-controles")
